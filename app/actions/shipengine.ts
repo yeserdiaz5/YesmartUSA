@@ -1,9 +1,8 @@
 "use server"
 
 import { isShipEngineConfigured } from "@/lib/shipengine"
-import { createClient } from "@/lib/supabase/server"
+import { createServerActionClient } from "@/lib/supabase/server-action"
 import { revalidatePath, unstable_noStore } from "next/cache"
-import { cookies } from "next/headers"
 
 // Declare variables before using them
 const v0 = "some value"
@@ -113,22 +112,7 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
       }
     }
 
-    const nextCookies = await cookies()
-    const allCookies = nextCookies.getAll()
-    console.log("[v0] 🍪 Total cookies available:", allCookies.length)
-    console.log(
-      "[v0] 🍪 Cookie names:",
-      allCookies.map((c) => c.name),
-    )
-
-    const authCookies = allCookies.filter((c) => c.name.includes("supabase") || c.name.includes("auth"))
-    console.log("[v0] 🍪 Auth-related cookies:", authCookies.length)
-    console.log(
-      "[v0] 🍪 Auth cookie names:",
-      authCookies.map((c) => c.name),
-    )
-
-    const supabase = await createClient()
+    const supabase = await createServerActionClient()
 
     console.log("[v0] 🔐 Attempting to get user...")
     const {
@@ -150,8 +134,6 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
         error: "Error de autenticación: " + authError.message,
         errorDetails: {
           authError: authError.message,
-          cookiesAvailable: allCookies.length,
-          authCookiesAvailable: authCookies.length,
         },
       }
     }
@@ -161,12 +143,6 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
       return {
         success: false,
         error: "Usuario no autenticado. Por favor, cierra sesión y vuelve a iniciar sesión.",
-        errorDetails: {
-          reason: "No user object returned from getUser()",
-          cookiesAvailable: allCookies.length,
-          authCookiesAvailable: authCookies.length,
-          authCookieNames: authCookies.map((c) => c.name),
-        },
       }
     }
 
@@ -380,22 +356,7 @@ export async function purchaseLabelForOrder(
       }
     }
 
-    const nextCookies = await cookies()
-    const allCookies = nextCookies.getAll()
-    console.log("[v0] 🍪 Total cookies available:", allCookies.length)
-    console.log(
-      "[v0] 🍪 Cookie names:",
-      allCookies.map((c) => c.name),
-    )
-
-    const authCookies = allCookies.filter((c) => c.name.includes("supabase") || c.name.includes("auth"))
-    console.log("[v0] 🍪 Auth-related cookies:", authCookies.length)
-    console.log(
-      "[v0] 🍪 Auth cookie names:",
-      authCookies.map((c) => c.name),
-    )
-
-    const supabase = await createClient()
+    const supabase = await createServerActionClient()
 
     console.log("[v0] 🔐 Attempting to get user...")
     const {
@@ -417,8 +378,6 @@ export async function purchaseLabelForOrder(
         error: "Error de autenticación: " + authError.message,
         errorDetails: {
           authError: authError.message,
-          cookiesAvailable: allCookies.length,
-          authCookiesAvailable: authCookies.length,
         },
       }
     }
@@ -428,12 +387,6 @@ export async function purchaseLabelForOrder(
       return {
         success: false,
         error: "Usuario no autenticado. Por favor, cierra sesión y vuelve a iniciar sesión.",
-        errorDetails: {
-          reason: "No user object returned from getUser()",
-          cookiesAvailable: allCookies.length,
-          authCookiesAvailable: authCookies.length,
-          authCookieNames: authCookies.map((c) => c.name),
-        },
       }
     }
 
@@ -792,7 +745,7 @@ export async function updateTrackingStatus(shipmentId: string) {
       }
     }
 
-    const supabase = await createClient()
+    const supabase = await createServerActionClient()
 
     const { data: shipment, error: shipmentError } = await supabase
       .from("shipments")
@@ -953,7 +906,7 @@ export async function voidLabel(labelId: string, orderId: string) {
       }
     }
 
-    const supabase = await createClient()
+    const supabase = await createServerActionClient()
 
     const {
       data: { user },
