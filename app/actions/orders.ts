@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { clearCart } from "./cart"
 import { createNotification } from "./notifications"
-import { createShipment } from "./shipments"
+import { createShipment, createShipEngineShipment } from "./shipments"
 
 export interface CreateOrderData {
   shipping_address: {
@@ -103,6 +103,24 @@ export async function createOrder(orderData: CreateOrderData) {
     )
   }
 
+  await createShipEngineShipment({
+    orderId: order.id,
+    shipTo: {
+      name: orderData.shipping_address.full_name,
+      phone: orderData.shipping_address.phone,
+      addressLine1: orderData.shipping_address.address_line1,
+      addressLine2: orderData.shipping_address.address_line2,
+      city: orderData.shipping_address.city,
+      state: orderData.shipping_address.state,
+      postalCode: orderData.shipping_address.postal_code,
+      country: orderData.shipping_address.country,
+    },
+    items: cartItems.map((item) => ({
+      name: item.product.title,
+      quantity: item.quantity,
+    })),
+  })
+
   revalidatePath("/orders")
   return { success: true, orderId: order.id }
 }
@@ -196,6 +214,23 @@ export async function createGuestOrder(
       order.id,
     )
   }
+
+  await createShipEngineShipment({
+    orderId: order.id,
+    shipTo: {
+      name: shippingInfo.customerName,
+      phone: shippingInfo.phone,
+      addressLine1: shippingInfo.street,
+      city: shippingInfo.city,
+      state: shippingInfo.state,
+      postalCode: shippingInfo.zip,
+      country: shippingInfo.country,
+    },
+    items: cartItems.map((item) => ({
+      name: `Product ${item.product_id}`,
+      quantity: item.quantity,
+    })),
+  })
 
   revalidatePath("/orders")
   revalidatePath("/seller")
@@ -313,6 +348,23 @@ export async function createTestOrder(shippingInfo: {
         order.id,
       )
     }
+
+    await createShipEngineShipment({
+      orderId: order.id,
+      shipTo: {
+        name: shippingInfo.customerName,
+        phone: shippingInfo.phone,
+        addressLine1: shippingInfo.street,
+        city: shippingInfo.city,
+        state: shippingInfo.state,
+        postalCode: shippingInfo.zip,
+        country: shippingInfo.country,
+      },
+      items: cartItems.map((item) => ({
+        name: item.product.title,
+        quantity: item.quantity,
+      })),
+    })
 
     revalidatePath("/orders")
     revalidatePath("/seller")

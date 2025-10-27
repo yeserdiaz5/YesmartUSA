@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label"
 import SiteHeader from "@/components/site-header"
 import { useToast } from "@/hooks/use-toast"
 import type { User } from "@/lib/types/database"
-import { getRatesForOrder, purchaseLabelForOrder } from "@/app/actions/shipengine"
+import { getRatesForOrder, validateAddress } from "@/app/actions/shipengine-rates"
+import { purchaseLabelForOrder } from "@/app/actions/shipengine"
 
 interface CreateLabelPlusClientProps {
   user: User | null
@@ -43,8 +44,6 @@ export default function CreateLabelPlusClient({ user, orderData, sellerProfile }
     setAddressValidation(null)
 
     try {
-      const { validateAddress } = await import("@/app/actions/shipengine")
-
       // Validate buyer address
       const buyerValidation = await validateAddress(buyerAddress)
 
