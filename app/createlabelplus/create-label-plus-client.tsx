@@ -166,7 +166,17 @@ export default function CreateLabelPlusClient({ user, orderData, sellerProfile }
     setRates([])
 
     try {
-      const result = await getRatesForOrder(orderData.id, lengthNum, widthNum, heightNum, weightNum)
+      const result = await getRatesForOrder(
+        orderData.id,
+        lengthNum,
+        widthNum,
+        heightNum,
+        weightNum,
+        buyerAddress,
+        sellerAddress,
+        sellerAddress.full_name || sellerProfile?.business_name || "Seller",
+        sellerAddress.phone,
+      )
 
       console.log("[v0] 📦 getRatesForOrder result:", result)
 
