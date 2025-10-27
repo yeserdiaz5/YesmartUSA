@@ -246,28 +246,30 @@ export async function createShipEngineShipment(data: ShipEngineShipmentData) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        shipment: {
-          service_code: "usps_priority_mail",
-          ship_to: {
-            name: data.shipTo.name,
-            phone: data.shipTo.phone,
-            address_line1: data.shipTo.addressLine1,
-            address_line2: data.shipTo.addressLine2 || "",
-            city_locality: data.shipTo.city,
-            state_province: data.shipTo.state,
-            postal_code: data.shipTo.postalCode,
-            country_code: data.shipTo.country,
-          },
-          packages: [
-            {
-              weight: {
-                value: 1,
-                unit: "pound",
-              },
+        shipments: [
+          {
+            service_code: "usps_priority_mail",
+            ship_to: {
+              name: data.shipTo.name,
+              phone: data.shipTo.phone,
+              address_line1: data.shipTo.addressLine1,
+              address_line2: data.shipTo.addressLine2 || "",
+              city_locality: data.shipTo.city,
+              state_province: data.shipTo.state,
+              postal_code: data.shipTo.postalCode,
+              country_code: data.shipTo.country,
             },
-          ],
-        },
-        external_order_id: data.orderId,
+            packages: [
+              {
+                weight: {
+                  value: 1,
+                  unit: "pound",
+                },
+              },
+            ],
+            external_order_id: data.orderId,
+          },
+        ],
       }),
     })
 
@@ -278,11 +280,93 @@ export async function createShipEngineShipment(data: ShipEngineShipmentData) {
     }
 
     const result = await response.json()
-    console.log("[v0] ShipEngine shipment created:", result.shipment_id)
+    const shipmentId = result.shipments?.[0]?.shipment_id
+
+    if (!shipmentId) {
+      console.error("[v0] No shipment ID in response:", result)
+      return { success: false, error: "No shipment ID returned" }
+    }
+
+    console.log("[v0] ShipEngine shipment created:", shipmentId)
 
     return {
       success: true,
-      shipmentId: result.shipment_id,
+      shipmentId,
+      message: "Shipment created in ShipEngine dashboard",
+    }
+  } catch (error: any) {
+    console.error("[v0] Error creating ShipEngine shipment:", error)
+    return { success: false, error: error.message }
+  }
+}
+
+export async function createShipEngineShipmentAndRedirect(data: ShipEngineShipmentData) {
+  const apiKey = process.env.SHIPENGINE_API_KEY
+
+  if (!apiKey) {
+    console.error("[v0] ShipEngine API key not configured")
+    return { success: false, error: "ShipEngine not configured" }
+  }
+
+  try {
+    console.log("[v0] Creating ShipEngine shipment for order:", data.orderId)
+
+    const response = await fetch("https://api.shipengine.com/v1/shipments", {
+      method: "POST",
+      headers: {
+        "API-Key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        shipments: [
+          {
+            service_code: "usps_priority_mail",
+            ship_to: {
+              name: data.shipTo.name,
+              phone: data.shipTo.phone,
+              address_line1: data.shipTo.addressLine1,
+              address_line2: data.shipTo.addressLine2 || "",
+              city_locality: data.shipTo.city,
+              state_province: data.shipTo.state,
+              postal_code: data.shipTo.postalCode,
+              country_code: data.shipTo.country,
+            },
+            packages: [
+              {
+                weight: {
+                  value: 1,
+                  unit: "pound",
+                },
+              },
+            ],
+            external_order_id: data.orderId,
+          },
+        ],
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      console.error("[v0] ShipEngine API error:", errorData)
+      return { success: false, error: "Failed to create shipment in ShipEngine" }
+    }
+
+    const result = await response.json()
+    const shipmentId = result.shipments?.[0]?.shipment_id
+
+    if (!shipmentId) {
+      console.error("[v0] No shipment ID in response:", result)
+      return { success: false, error: "No shipment ID returned" }
+    }
+
+    console.log("[v0] ShipEngine shipment created:", shipmentId)
+
+    const shipEngineUrl = `https://dashboard.shipengine.com/shipments/${shipmentId}`
+
+    return {
+      success: true,
+      shipmentId,
+      redirectUrl: shipEngineUrl,
       message: "Shipment created in ShipEngine dashboard",
     }
   } catch (error: any) {

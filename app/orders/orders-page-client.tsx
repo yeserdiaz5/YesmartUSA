@@ -254,6 +254,48 @@ export default function OrdersPageClient({ user, orders = [] }: OrdersPageClient
     }
   }
 
+  const handleBuyShipping = async (order: any) => {
+    setLoadingOrders((prev) => new Set(prev).add(order.id))
+
+    try {
+      const { createShipEngineShipmentAndRedirect } = await import("../actions/shipments")
+
+      const result = await createShipEngineShipmentAndRedirect({
+        orderId: order.id,
+        shipTo: {
+          name: order.shipping_address.full_name,
+          phone: order.shipping_address.phone,
+          addressLine1: order.shipping_address.address_line1,
+          addressLine2: order.shipping_address.address_line2,
+          city: order.shipping_address.city,
+          state: order.shipping_address.state,
+          postalCode: order.shipping_address.postal_code,
+          country: order.shipping_address.country,
+        },
+        items: order.items.map((item: any) => ({
+          name: item.product.title,
+          quantity: item.quantity,
+        })),
+      })
+
+      if (result.success && result.redirectUrl) {
+        toast.success("Redirigiendo a ShipEngine...")
+        window.open(result.redirectUrl, "_blank")
+      } else {
+        toast.error(result.error || "Error al crear envío")
+      }
+    } catch (error) {
+      console.error("[v0] Error buying shipping:", error)
+      toast.error("Error al procesar el envío")
+    } finally {
+      setLoadingOrders((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(order.id)
+        return newSet
+      })
+    }
+  }
+
   const OrderCard = ({ order }: { order: any }) => {
     const hasShipment = orderShipments[order.id] && orderShipments[order.id].length > 0
     const isSyncing = syncingOrders.has(order.id)
@@ -328,11 +370,12 @@ export default function OrdersPageClient({ user, orders = [] }: OrdersPageClient
             <div className="mt-4 flex gap-2">
               {!hasShipment ? (
                 <Button
-                  onClick={() => router.push(`/createlabelplus?orderId=${order.id}`)}
+                  onClick={() => handleBuyShipping(order)}
+                  disabled={loadingOrders.has(order.id)}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                 >
                   <Package className="w-4 h-4 mr-2" />
-                  Comprar Envío
+                  {loadingOrders.has(order.id) ? "Creando envío..." : "Comprar Envío"}
                 </Button>
               ) : (
                 <Button
