@@ -1,7 +1,7 @@
 "use server"
 
 import { isShipEngineConfigured } from "@/lib/shipengine"
-import { createServerActionClient } from "@/lib/supabase/server-action"
+import { createClient } from "@/lib/supabase/server"
 import { revalidatePath, unstable_noStore } from "next/cache"
 
 // Declare variables before using them
@@ -112,41 +112,7 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
       }
     }
 
-    const supabase = await createServerActionClient()
-
-    console.log("[v0] 🔐 Attempting to get user...")
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    console.log("[v0] 🔐 Auth result - User:", user ? `Found (${user.id})` : "Not found")
-    console.log("[v0] 🔐 Auth result - Error:", authError ? authError.message : "None")
-
-    if (authError) {
-      console.error("[v0] ❌ Auth error details:", {
-        message: authError.message,
-        status: authError.status,
-        name: authError.name,
-      })
-      return {
-        success: false,
-        error: "Error de autenticación: " + authError.message,
-        errorDetails: {
-          authError: authError.message,
-        },
-      }
-    }
-
-    if (!user) {
-      console.error("[v0] ❌ User not authenticated - no user object")
-      return {
-        success: false,
-        error: "Usuario no autenticado. Por favor, cierra sesión y vuelve a iniciar sesión.",
-      }
-    }
-
-    console.log("[v0] ✅ User authenticated:", user.id)
+    const supabase = await createClient()
 
     const { data: orderItems, error: orderItemsError } = await supabase
       .from("order_items")
@@ -356,41 +322,7 @@ export async function purchaseLabelForOrder(
       }
     }
 
-    const supabase = await createServerActionClient()
-
-    console.log("[v0] 🔐 Attempting to get user...")
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    console.log("[v0] 🔐 Auth result - User:", user ? `Found (${user.id})` : "Not found")
-    console.log("[v0] 🔐 Auth result - Error:", authError ? authError.message : "None")
-
-    if (authError) {
-      console.error("[v0] ❌ Auth error details:", {
-        message: authError.message,
-        status: authError.status,
-        name: authError.name,
-      })
-      return {
-        success: false,
-        error: "Error de autenticación: " + authError.message,
-        errorDetails: {
-          authError: authError.message,
-        },
-      }
-    }
-
-    if (!user) {
-      console.error("[v0] ❌ User not authenticated - no user object")
-      return {
-        success: false,
-        error: "Usuario no autenticado. Por favor, cierra sesión y vuelve a iniciar sesión.",
-      }
-    }
-
-    console.log("[v0] ✅ User authenticated:", user.id)
+    const supabase = await createClient()
 
     const { data: orderItems, error: orderItemsError } = await supabase
       .from("order_items")
@@ -745,7 +677,7 @@ export async function updateTrackingStatus(shipmentId: string) {
       }
     }
 
-    const supabase = await createServerActionClient()
+    const supabase = await createClient()
 
     const { data: shipment, error: shipmentError } = await supabase
       .from("shipments")
@@ -906,21 +838,7 @@ export async function voidLabel(labelId: string, orderId: string) {
       }
     }
 
-    const supabase = await createServerActionClient()
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      console.error("[v0] ❌ User not authenticated")
-      return {
-        success: false,
-        error: "Usuario no autenticado",
-      }
-    }
-
-    console.log("[v0] ✅ User authenticated:", user.id)
+    const supabase = await createClient()
 
     const response = await fetch(`https://api.shipengine.com/v1/labels/${labelId}/void`, {
       method: "PUT",
