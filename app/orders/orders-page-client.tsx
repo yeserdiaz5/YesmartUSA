@@ -258,10 +258,30 @@ export default function OrdersPageClient({ user, orders = [] }: OrdersPageClient
     setLoadingOrders((prev) => new Set(prev).add(order.id))
 
     try {
+      if (!user?.seller_address) {
+        toast.error("Por favor configura tu dirección de envío en Configuración del Vendedor")
+        setLoadingOrders((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(order.id)
+          return newSet
+        })
+        return
+      }
+
       const { createShipEngineShipmentAndRedirect } = await import("../actions/shipments")
 
       const result = await createShipEngineShipmentAndRedirect({
         orderId: order.id,
+        shipFrom: {
+          name: user.seller_address.name || user.full_name || "Seller",
+          phone: user.seller_address.phone || "",
+          addressLine1: user.seller_address.address_line1,
+          addressLine2: user.seller_address.address_line2,
+          city: user.seller_address.city,
+          state: user.seller_address.state,
+          postalCode: user.seller_address.postal_code,
+          country: user.seller_address.country || "US",
+        },
         shipTo: {
           name: order.shipping_address.full_name,
           phone: order.shipping_address.phone,

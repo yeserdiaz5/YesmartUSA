@@ -212,6 +212,16 @@ export async function getShipmentByTracking(trackingNumber: string) {
 
 interface ShipEngineShipmentData {
   orderId: string
+  shipFrom: {
+    name: string
+    phone: string
+    addressLine1: string
+    addressLine2?: string
+    city: string
+    state: string
+    postalCode: string
+    country: string
+  }
   shipTo: {
     name: string
     phone: string
@@ -249,6 +259,16 @@ export async function createShipEngineShipment(data: ShipEngineShipmentData) {
         shipments: [
           {
             service_code: "usps_priority_mail",
+            ship_from: {
+              name: data.shipFrom.name,
+              phone: data.shipFrom.phone,
+              address_line1: data.shipFrom.addressLine1,
+              address_line2: data.shipFrom.addressLine2 || "",
+              city_locality: data.shipFrom.city,
+              state_province: data.shipFrom.state,
+              postal_code: data.shipFrom.postalCode,
+              country_code: data.shipFrom.country,
+            },
             ship_to: {
               name: data.shipTo.name,
               phone: data.shipTo.phone,
@@ -321,6 +341,16 @@ export async function createShipEngineShipmentAndRedirect(data: ShipEngineShipme
         shipments: [
           {
             service_code: "usps_priority_mail",
+            ship_from: {
+              name: data.shipFrom.name,
+              phone: data.shipFrom.phone,
+              address_line1: data.shipFrom.addressLine1,
+              address_line2: data.shipFrom.addressLine2 || "",
+              city_locality: data.shipFrom.city,
+              state_province: data.shipFrom.state,
+              postal_code: data.shipFrom.postalCode,
+              country_code: data.shipFrom.country,
+            },
             ship_to: {
               name: data.shipTo.name,
               phone: data.shipTo.phone,
