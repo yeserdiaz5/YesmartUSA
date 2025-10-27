@@ -338,20 +338,20 @@ export async function purchaseLabelForOrder(
       }
     }
 
-    const nextCookies = cookies()
-    const allCookies = Array.from(nextCookies.entries())
+    const nextCookies = await cookies()
+    const allCookies = nextCookies.getAll()
     console.log("[v0] 🍪 Total cookies available:", allCookies.length)
     console.log(
       "[v0] 🍪 Cookie names:",
-      allCookies.map(([name]) => name),
+      allCookies.map((c) => c.name),
     )
 
     // Look for Supabase auth cookies
-    const authCookies = allCookies.filter(([name]) => name.includes("supabase") || name.includes("auth"))
+    const authCookies = allCookies.filter((c) => c.name.includes("supabase") || c.name.includes("auth"))
     console.log("[v0] 🍪 Auth-related cookies:", authCookies.length)
     console.log(
       "[v0] 🍪 Auth cookie names:",
-      authCookies.map(([name]) => name),
+      authCookies.map((c) => c.name),
     )
 
     const supabase = await createClient()
@@ -391,7 +391,7 @@ export async function purchaseLabelForOrder(
           reason: "No user object returned from getUser()",
           cookiesAvailable: allCookies.length,
           authCookiesAvailable: authCookies.length,
-          authCookieNames: authCookies.map(([name]) => name),
+          authCookieNames: authCookies.map((c) => c.name),
         },
       }
     }
