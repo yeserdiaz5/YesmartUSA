@@ -57,9 +57,6 @@ function validateShipEngineAddress(address: any, type: "ship_to" | "ship_from"):
   return { valid: errors.length === 0, errors }
 }
 
-// Existing code block
-// [v0-no-op-code-block-prefix]
-
 export async function testShipEngineConnection() {
   try {
     console.log("[v0] Testing ShipEngine connection...")
@@ -102,6 +99,8 @@ export async function testShipEngineConnection() {
 }
 
 export async function getRatesForOrder(orderId: string, length: number, width: number, height: number, weight: number) {
+  unstable_noStore()
+
   try {
     console.log("[v0] ===== GETTING RATES FOR ORDER =====")
     console.log("[v0] Order ID:", orderId)
@@ -114,17 +113,60 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
       }
     }
 
+    const nextCookies = await cookies()
+    const allCookies = nextCookies.getAll()
+    console.log("[v0] 🍪 Total cookies available:", allCookies.length)
+    console.log(
+      "[v0] 🍪 Cookie names:",
+      allCookies.map((c) => c.name),
+    )
+
+    const authCookies = allCookies.filter((c) => c.name.includes("supabase") || c.name.includes("auth"))
+    console.log("[v0] 🍪 Auth-related cookies:", authCookies.length)
+    console.log(
+      "[v0] 🍪 Auth cookie names:",
+      authCookies.map((c) => c.name),
+    )
+
     const supabase = await createClient()
 
+    console.log("[v0] 🔐 Attempting to get user...")
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      console.error("[v0] ❌ User not authenticated")
+    console.log("[v0] 🔐 Auth result - User:", user ? `Found (${user.id})` : "Not found")
+    console.log("[v0] 🔐 Auth result - Error:", authError ? authError.message : "None")
+
+    if (authError) {
+      console.error("[v0] ❌ Auth error details:", {
+        message: authError.message,
+        status: authError.status,
+        name: authError.name,
+      })
       return {
         success: false,
-        error: "Usuario no autenticado",
+        error: "Error de autenticación: " + authError.message,
+        errorDetails: {
+          authError: authError.message,
+          cookiesAvailable: allCookies.length,
+          authCookiesAvailable: authCookies.length,
+        },
+      }
+    }
+
+    if (!user) {
+      console.error("[v0] ❌ User not authenticated - no user object")
+      return {
+        success: false,
+        error: "Usuario no autenticado. Por favor, cierra sesión y vuelve a iniciar sesión.",
+        errorDetails: {
+          reason: "No user object returned from getUser()",
+          cookiesAvailable: allCookies.length,
+          authCookiesAvailable: authCookies.length,
+          authCookieNames: authCookies.map((c) => c.name),
+        },
       }
     }
 
@@ -346,7 +388,6 @@ export async function purchaseLabelForOrder(
       allCookies.map((c) => c.name),
     )
 
-    // Look for Supabase auth cookies
     const authCookies = allCookies.filter((c) => c.name.includes("supabase") || c.name.includes("auth"))
     console.log("[v0] 🍪 Auth-related cookies:", authCookies.length)
     console.log(
@@ -415,10 +456,10 @@ export async function purchaseLabelForOrder(
     const sellerId = orderItems[0].seller_id
     console.log("[v0] ✅ Seller ID:", sellerId)
 
-    const { data: order, error: orderError } = await supabase.from("orders").select("*").eq("id", orderId).single()
+    const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single()
 
-    if (orderError || !order) {
-      console.error("[v0] ❌ Order not found:", orderError)
+    if (!order) {
+      console.error("[v0] ❌ Order not found")
       return {
         success: false,
         error: "Pedido no encontrado",
@@ -433,8 +474,8 @@ export async function purchaseLabelForOrder(
       .eq("id", sellerId)
       .single()
 
-    if (sellerError || !seller || !seller.seller_address) {
-      console.error("[v0] ❌ Seller not found or no address:", sellerError)
+    if (!seller || !seller.seller_address) {
+      console.error("[v0] ❌ Seller not found or no address")
       return {
         success: false,
         error: "Vendedor no encontrado o sin dirección configurada",
@@ -528,11 +569,18 @@ export async function purchaseLabelForOrder(
     console.log("[v0] ✅ Tracking:", label.tracking_number)
     console.log("[v0] ✅ PDF URL:", label.label_download?.pdf)
 
-    const { data: existingShipment } = await supabase
+    console.log("[v0] 💾 Starting database operations...")
+
+    const { data: existingShipment, error: existingShipmentError } = await supabase
       .from("shipments")
       .select("id, tracking_number")
       .eq("order_id", orderId)
       .limit(1)
+
+    console.log("[v0] 🔍 Existing shipment check result:", {
+      found: existingShipment && existingShipment.length > 0,
+      error: existingShipmentError?.message,
+    })
 
     if (existingShipment && existingShipment.length > 0) {
       console.log("[v0] ⚠️ Order already has a shipment:", existingShipment[0].tracking_number)
@@ -545,7 +593,7 @@ export async function purchaseLabelForOrder(
       }
     }
 
-    const { error: shipmentError } = await supabase.from("shipments").insert({
+    const shipmentData = {
       order_id: orderId,
       tracking_number: label.tracking_number,
       carrier: label.carrier_code,
@@ -553,17 +601,49 @@ export async function purchaseLabelForOrder(
       label_id: label.label_id,
       status: "pending",
       shipped_at: new Date().toISOString(),
-    })
+    }
+    console.log("[v0] 💾 Shipment data:", shipmentData)
+
+    const { data: insertedShipment, error: shipmentError } = await supabase
+      .from("shipments")
+      .insert(shipmentData)
+      .select()
 
     if (shipmentError) {
-      console.error("[v0] ⚠️ Error saving shipment:", shipmentError)
+      console.error("[v0] ❌ Error saving shipment:", shipmentError)
+      console.error("[v0] ❌ Shipment error details:", {
+        message: shipmentError.message,
+        details: shipmentError.details,
+        hint: shipmentError.hint,
+      })
+    } else {
+      console.log("[v0] ✅ Shipment saved successfully:", insertedShipment)
     }
 
-    await supabase.from("orders").update({ status: "shipped" }).eq("id", orderId)
+    const { data: updatedOrder, error: updateOrderError } = await supabase
+      .from("orders")
+      .update({ status: "shipped" })
+      .eq("id", orderId)
+      .select()
+
+    if (updateOrderError) {
+      console.error("[v0] ❌ Error updating order status:", updateOrderError)
+      console.error("[v0] ❌ Order error details:", {
+        message: updateOrderError.message,
+        details: updateOrderError.details,
+        hint: updateOrderError.hint,
+      })
+    } else {
+      console.log("[v0] ✅ Order status updated successfully:", updatedOrder)
+    }
+
+    console.log("[v0] 💾 Database operations completed")
 
     revalidatePath("/orders")
     revalidatePath("/seller")
     revalidatePath("/createlabelplus")
+
+    console.log("[v0] 🏁 ===== PURCHASING LABEL - END =====")
 
     return {
       success: true,
@@ -714,7 +794,6 @@ export async function updateTrackingStatus(shipmentId: string) {
 
     const supabase = await createClient()
 
-    // Get shipment data
     const { data: shipment, error: shipmentError } = await supabase
       .from("shipments")
       .select("*")
@@ -729,7 +808,6 @@ export async function updateTrackingStatus(shipmentId: string) {
       }
     }
 
-    // Get tracking info from ShipEngine
     const response = await fetch(
       `https://api.shipengine.com/v1/tracking?carrier_code=${shipment.carrier}&tracking_number=${shipment.tracking_number}`,
       {
@@ -752,18 +830,16 @@ export async function updateTrackingStatus(shipmentId: string) {
     const trackingData = await response.json()
     console.log("[v0] ✅ Tracking data received:", trackingData)
 
-    // Update shipment status based on tracking data
+    const statusMap: Record<string, string> = {
+      DE: "delivered",
+      IT: "in_transit",
+      UN: "pending",
+      EX: "failed",
+      AT: "in_transit",
+    }
     const updates: any = {}
 
     if (trackingData.status_code) {
-      // Map ShipEngine status codes to our status
-      const statusMap: Record<string, string> = {
-        DE: "delivered",
-        IT: "in_transit",
-        UN: "pending",
-        EX: "failed",
-        AT: "in_transit",
-      }
       updates.status = statusMap[trackingData.status_code] || "pending"
     }
 
@@ -775,7 +851,6 @@ export async function updateTrackingStatus(shipmentId: string) {
       updates.estimated_delivery = trackingData.estimated_delivery_date
     }
 
-    // Update shipment in database
     const { error: updateError } = await supabase.from("shipments").update(updates).eq("id", shipmentId)
 
     if (updateError) {
