@@ -268,42 +268,21 @@ export default function OrdersPageClient({ user, orders = [] }: OrdersPageClient
         return
       }
 
-      const { createShipEngineShipmentAndRedirect } = await import("../actions/shipments")
-
-      const result = await createShipEngineShipmentAndRedirect({
+      const params = new URLSearchParams({
         orderId: order.id,
-        shipFrom: {
-          name: user.seller_address.name || user.full_name || "Seller",
-          phone: user.seller_address.phone || "",
-          addressLine1: user.seller_address.address_line1,
-          addressLine2: user.seller_address.address_line2,
-          city: user.seller_address.city,
-          state: user.seller_address.state,
-          postalCode: user.seller_address.postal_code,
-          country: user.seller_address.country || "US",
-        },
-        shipTo: {
-          name: order.shipping_address.full_name,
-          phone: order.shipping_address.phone,
-          addressLine1: order.shipping_address.address_line1,
-          addressLine2: order.shipping_address.address_line2,
-          city: order.shipping_address.city,
-          state: order.shipping_address.state,
-          postalCode: order.shipping_address.postal_code,
-          country: order.shipping_address.country,
-        },
-        items: order.items.map((item: any) => ({
-          name: item.product.title,
-          quantity: item.quantity,
-        })),
+        orderNumber: order.id.slice(0, 8),
+        buyerName: order.shipping_address.full_name,
+        buyerEmail: order.buyer_email || "",
+        addressLine1: order.shipping_address.address_line1,
+        addressLine2: order.shipping_address.address_line2 || "",
+        city: order.shipping_address.city,
+        state: order.shipping_address.state,
+        postalCode: order.shipping_address.postal_code,
+        country: order.shipping_address.country,
+        phone: order.shipping_address.phone,
       })
 
-      if (result.success && result.redirectUrl) {
-        toast.success("Redirigiendo a ShipEngine...")
-        window.open(result.redirectUrl, "_blank")
-      } else {
-        toast.error(result.error || "Error al crear envío")
-      }
+      router.push(`/createlabel1?${params.toString()}`)
     } catch (error) {
       console.error("[v0] Error buying shipping:", error)
       toast.error("Error al procesar el envío")
