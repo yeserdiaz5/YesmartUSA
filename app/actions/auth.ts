@@ -6,29 +6,6 @@ import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 
-export async function syncSession(accessToken: string, refreshToken: string) {
-  const cookieStore = await cookies()
-
-  // Set cookies with proper options
-  cookieStore.set("sb-access-token", accessToken, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  })
-
-  cookieStore.set("sb-refresh-token", refreshToken, {
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30, // 30 days
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-  })
-
-  revalidatePath("/", "layout")
-
-  return { success: true }
-}
-
 export async function loginWithPassword(email: string, password: string) {
   const supabase = await createClient()
 
@@ -44,6 +21,23 @@ export async function loginWithPassword(email: string, password: string) {
     }
   }
 
+  if (data.session) {
+    // Set session cookies manually
+    const cookieStore = await cookies()
+    cookieStore.set("sb-access-token", data.session.access_token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    })
+    cookieStore.set("sb-refresh-token", data.session.refresh_token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    })
+  }
+
   revalidatePath("/", "layout")
 
   return {
@@ -53,14 +47,8 @@ export async function loginWithPassword(email: string, password: string) {
 }
 
 export async function logout() {
-  const cookieStore = await cookies()
-
-  cookieStore.delete("sb-access-token")
-  cookieStore.delete("sb-refresh-token")
-
   const supabase = await createClient()
   await supabase.auth.signOut()
-
   revalidatePath("/", "layout")
   redirect("/")
 }

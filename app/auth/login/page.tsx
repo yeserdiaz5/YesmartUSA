@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { createClient } from "@/lib/supabase/client"
-import { syncSession } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { loginWithPassword } from "@/app/actions/auth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -27,29 +27,21 @@ export default function LoginPage() {
     console.log("[v0] 🔐 Attempting login with email:", email)
 
     try {
-      const supabase = createClient()
-      const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const result = await loginWithPassword(email, password)
 
-      if (loginError) {
-        console.error("[v0] ❌ Login error:", loginError)
-        if (loginError.message === "Invalid login credentials") {
+      console.log("[v0] 🔐 Login response:", result)
+
+      if (!result.success) {
+        console.error("[v0] ❌ Login error:", result.error)
+        if (result.error === "Invalid login credentials") {
           throw new Error(
             "Credenciales inválidas. Si te registraste con Google, usa el botón 'Continuar con Google' o restablece tu contraseña.",
           )
         }
-        throw new Error(loginError.message)
+        throw new Error(result.error)
       }
 
-      console.log("[v0] ✅ Login successful, syncing session to server...")
-
-      if (data.session) {
-        await syncSession(data.session.access_token, data.session.refresh_token)
-      }
-
-      console.log("[v0] ✅ Session synced, redirecting...")
+      console.log("[v0] ✅ Login successful, redirecting...")
       window.location.href = "/"
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An error occurred"
