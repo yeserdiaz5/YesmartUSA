@@ -4,6 +4,8 @@ import ProductForm from "@/app/seller/products/product-form"
 import { getCategories, getTags } from "@/app/actions/products"
 import { SiteHeader } from "@/components/site-header"
 
+export const dynamic = "force-dynamic"
+
 export default async function NewProductPage() {
   try {
     const user = await requireAuth() // Removed role restriction - all authenticated users can create products

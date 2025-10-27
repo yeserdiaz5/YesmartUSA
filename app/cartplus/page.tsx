@@ -2,6 +2,8 @@ import { getCurrentUser } from "@/lib/auth/utils"
 import SiteHeader from "@/components/site-header"
 import { CartPageClient } from "./cart-page-client"
 
+export const dynamic = "force-dynamic"
+
 export default async function CartPlusPage() {
   let user = null
   try {

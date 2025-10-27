@@ -110,6 +110,8 @@ function TrustScoreDisplay({ score }: { score: number }) {
   )
 }
 
+export const dynamic = "force-dynamic"
+
 export default async function SellerPage() {
   try {
     const user = await requireAuth()

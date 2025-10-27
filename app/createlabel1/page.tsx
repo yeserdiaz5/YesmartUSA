@@ -2,12 +2,19 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import CreateLabelClient from "./create-label-client"
 
+export const dynamic = "force-dynamic"
+
 export default async function CreateLabelPage({
   searchParams,
 }: {
   searchParams: { orderId?: string }
 }) {
   const supabase = createClient()
+
+  if (!supabase) {
+    redirect("/auth/login")
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()

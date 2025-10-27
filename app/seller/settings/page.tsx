@@ -4,6 +4,8 @@ import { SiteHeader } from "@/components/site-header"
 import SellerSettingsClient from "./seller-settings-client"
 import { createClient } from "@/lib/supabase/server"
 
+export const dynamic = "force-dynamic"
+
 export default async function SellerSettingsPage() {
   try {
     const user = await requireAuth()

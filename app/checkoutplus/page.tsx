@@ -1,6 +1,8 @@
 import { CheckoutClient } from "./checkout-client"
 import { getCurrentUser } from "@/lib/auth/utils"
 
+export const dynamic = "force-dynamic"
+
 export default async function CheckoutPlusPage() {
   let user = null
   try {
