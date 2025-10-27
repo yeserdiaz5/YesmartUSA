@@ -1,35 +1,36 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 
 export async function createClient() {
   const cookieStore = await cookies()
 
-  // Get the session from cookies manually
-  const accessToken = cookieStore.get("sb-access-token")?.value
-  const refreshToken = cookieStore.get("sb-refresh-token")?.value
+  try {
+    return createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+          } catch {
+            // Ignore errors when setting cookies (happens in middleware)
+          }
+        },
+      },
+    })
+  } catch (error) {
+    console.error("[v0] Supabase SSR client creation failed, using basic client:", error)
 
-  // Create a regular Supabase client
-  const supabase = createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
+    // Fallback: Return a basic client without SSR features
+    const { createClient: createBasicClient } = await import("@supabase/supabase-js")
+    return createBasicClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
       },
-    },
-  )
-
-  // If we have tokens, set the session manually
-  if (accessToken && refreshToken) {
-    await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
     })
   }
-
-  return supabase
 }
 
-// Export createClient as an alias for backward compatibility
 export { createClient as createServerClient }
