@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+import { loginWithPassword } from "@/app/actions/auth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -20,28 +21,24 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     console.log("[v0] 🔐 Attempting login with email:", email)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
+      const result = await loginWithPassword(email, password)
 
-      console.log("[v0] 🔐 Login response:", { data, error })
+      console.log("[v0] 🔐 Login response:", result)
 
-      if (error) {
-        console.error("[v0] ❌ Login error:", error)
-        if (error.message === "Invalid login credentials") {
+      if (!result.success) {
+        console.error("[v0] ❌ Login error:", result.error)
+        if (result.error === "Invalid login credentials") {
           throw new Error(
             "Credenciales inválidas. Si te registraste con Google, usa el botón 'Continuar con Google' o restablece tu contraseña.",
           )
         }
-        throw error
+        throw new Error(result.error)
       }
 
       console.log("[v0] ✅ Login successful, redirecting...")
