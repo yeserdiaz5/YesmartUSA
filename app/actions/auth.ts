@@ -36,25 +36,21 @@ export async function loginWithPassword(email: string, password: string) {
       maxAge: 60 * 60 * 24 * 7, // 7 days
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      httpOnly: false, // Allow client-side access
+      httpOnly: true, // More secure
     })
     cookieStore.set("sb-refresh-token", data.session.refresh_token, {
       path: "/",
       maxAge: 60 * 60 * 24 * 30, // 30 days
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
-      httpOnly: false, // Allow client-side access
+      httpOnly: true, // More secure
     })
 
     console.log("[v0] loginWithPassword - Cookies set successfully")
   }
 
   revalidatePath("/", "layout")
-
-  return {
-    success: true,
-    user: data.user,
-  }
+  redirect("/")
 }
 
 export async function logout() {
