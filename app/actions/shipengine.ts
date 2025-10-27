@@ -97,7 +97,17 @@ export async function testShipEngineConnection() {
   }
 }
 
-export async function getRatesForOrder(orderId: string, length: number, width: number, height: number, weight: number) {
+export async function getRatesForOrder(
+  orderId: string,
+  length: number,
+  width: number,
+  height: number,
+  weight: number,
+  buyerAddress: any,
+  sellerAddress: any,
+  sellerName: string,
+  sellerPhone: string,
+) {
   unstable_noStore()
 
   try {
@@ -109,73 +119,6 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
       return {
         success: false,
         error: "ShipEngine API key is not configured.",
-      }
-    }
-
-    const supabase = await createClient()
-
-    const { data: orderItems, error: orderItemsError } = await supabase
-      .from("order_items")
-      .select("seller_id, order_id")
-      .eq("order_id", orderId)
-      .limit(1)
-
-    if (orderItemsError || !orderItems || orderItems.length === 0) {
-      console.error("[v0] ❌ Order items not found:", orderItemsError)
-      return {
-        success: false,
-        error: "Pedido no encontrado o sin productos",
-      }
-    }
-
-    const sellerId = orderItems[0].seller_id
-    console.log("[v0] ✅ Seller ID:", sellerId)
-
-    const { data: order, error: orderError } = await supabase.from("orders").select("*").eq("id", orderId).single()
-
-    if (orderError || !order) {
-      console.error("[v0] ❌ Order not found:", orderError)
-      return {
-        success: false,
-        error: "Pedido no encontrado",
-      }
-    }
-
-    console.log("[v0] ✅ Order found:", order.id)
-
-    const { data: seller, error: sellerError } = await supabase
-      .from("users")
-      .select("full_name, phone, seller_address")
-      .eq("id", sellerId)
-      .single()
-
-    if (sellerError || !seller) {
-      console.error("[v0] ❌ Seller not found:", sellerError)
-      return {
-        success: false,
-        error: "Vendedor no encontrado",
-      }
-    }
-
-    console.log("[v0] ✅ Seller found:", seller.full_name)
-
-    if (!seller.seller_address) {
-      console.error("[v0] ❌ Seller address not configured")
-      return {
-        success: false,
-        error: "El vendedor no tiene dirección configurada. Por favor configura tu dirección en Configuración.",
-      }
-    }
-
-    const buyerAddress = order.shipping_address as any
-    const sellerAddress = seller.seller_address as any
-
-    const sellerName = sellerAddress.full_name || seller.full_name || ""
-    if (!sellerName || sellerName.includes("@")) {
-      console.error("[v0] ❌ Seller name is missing or is an email:", sellerName)
-      return {
-        success: false,
-        error: "Por favor configura tu nombre completo (no email) en Configuración del Vendedor.",
       }
     }
 
@@ -222,7 +165,7 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
         },
         ship_from: {
           name: sellerName,
-          phone: formatPhone(seller.phone || sellerAddress.phone),
+          phone: formatPhone(sellerPhone),
           address_line1: sellerAddress.address_line1,
           ...(sellerAddress.address_line2 && { address_line2: sellerAddress.address_line2 }),
           city_locality: sellerAddress.city,
@@ -265,7 +208,7 @@ export async function getRatesForOrder(orderId: string, length: number, width: n
       const errorText = await ratesResponse.text()
       let errorData
       try {
-        errorData = JSON.parse(errorText)
+        errorData = JSON.stringify(JSON.parse(errorText), null, 2)
       } catch {
         errorData = { message: errorText }
       }
@@ -326,7 +269,13 @@ export async function purchaseLabelForOrder(
 
     const { data: orderItems, error: orderItemsError } = await supabase
       .from("order_items")
-      .select("seller_id, order_id")
+      .select(`
+        order_id,
+        product_id,
+        products (
+          seller_id
+        )
+      `)
       .eq("order_id", orderId)
       .limit(1)
 
@@ -338,7 +287,14 @@ export async function purchaseLabelForOrder(
       }
     }
 
-    const sellerId = orderItems[0].seller_id
+    const sellerId = (orderItems[0].products as any)?.seller_id
+    if (!sellerId) {
+      console.error("[v0] ❌ Seller ID not found in product")
+      return {
+        success: false,
+        error: "No se pudo encontrar el vendedor del producto",
+      }
+    }
     console.log("[v0] ✅ Seller ID:", sellerId)
 
     const { data: order } = await supabase.from("orders").select("*").eq("id", orderId).single()
@@ -854,7 +810,7 @@ export async function voidLabel(labelId: string, orderId: string) {
       const errorText = await response.text()
       let errorData
       try {
-        errorData = JSON.parse(errorText)
+        errorData = JSON.stringify(JSON.parse(errorText), null, 2)
       } catch {
         errorData = { message: errorText }
       }
