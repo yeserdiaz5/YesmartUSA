@@ -1,6 +1,7 @@
 "use server"
 
 import { isShipEngineConfigured } from "@/lib/shipengine"
+import { getCurrentUserId } from "@/lib/auth/dal"
 import { unstable_noStore } from "next/cache"
 
 function formatPhone(phone: string | undefined): string {
@@ -14,6 +15,8 @@ function formatPhone(phone: string | undefined): string {
 
 export async function getShipEngineCarriers() {
   try {
+    await getCurrentUserId()
+
     if (!isShipEngineConfigured()) {
       return {
         success: false,
@@ -66,6 +69,9 @@ export async function getRatesForOrder(
     console.log("[v0] ===== GETTING RATES FROM SHIPENGINE =====")
     console.log("[v0] Order ID:", orderId)
     console.log("[v0] Package:", { length, width, height, weight })
+
+    const userId = await getCurrentUserId()
+    console.log("[v0] ✅ Authenticated user ID:", userId)
 
     if (!isShipEngineConfigured()) {
       return {
@@ -199,6 +205,8 @@ export async function getRatesForOrder(
 export async function validateAddress(address: any) {
   try {
     console.log("[v0] 🔍 Validating address with ShipEngine...")
+
+    await getCurrentUserId()
 
     if (!isShipEngineConfigured()) {
       return {

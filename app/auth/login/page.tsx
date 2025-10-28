@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -17,6 +17,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.signOut({ scope: "local" })
+  }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -26,6 +31,8 @@ export default function LoginPage() {
     const supabase = createClient()
 
     try {
+      await supabase.auth.signOut({ scope: "local" })
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -44,13 +51,10 @@ export default function LoginPage() {
         throw new Error("No se pudo iniciar sesión")
       }
 
-      // Redirect to home page
-      router.push("/")
-      router.refresh()
+      window.location.href = "/"
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An error occurred"
       setError(errorMessage)
-    } finally {
       setIsLoading(false)
     }
   }
