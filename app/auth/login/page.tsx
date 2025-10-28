@@ -42,7 +42,8 @@ export default function LoginPage() {
       }
 
       console.log("[v0] ✅ Login successful, redirecting...")
-      window.location.href = "/"
+      router.push("/")
+      router.refresh()
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An error occurred"
       console.error("[v0] ❌ Login failed:", errorMessage)

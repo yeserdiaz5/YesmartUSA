@@ -1,288 +1,351 @@
 "use client"
 
 import { useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Loader2, Package, Truck } from "lucide-react"
-import { SiteHeader } from "@/components/site-header"
+import { Badge } from "@/components/ui/badge"
+import SiteHeader from "@/components/site-header"
+import { Package, Truck, DollarSign, Clock, CheckCircle2, Loader2 } from "lucide-react"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+import { getRatesForOrder } from "@/app/actions/shipengine-rates"
+import { purchaseLabelForOrder } from "@/app/actions/shipengine"
 
-interface Rate {
-  rate_id: string
-  service_type: string
-  service_code: string
-  carrier_friendly_name: string
-  carrier_code: string
-  shipping_amount: {
-    amount: number
-    currency: string
-  }
-  delivery_days: number
-  package_type: string
+interface CreateLabelClientProps {
+  order: any
+  seller: any
+  user: any
 }
 
-export default function CreateLabelClient({ user, order }: any) {
-  const [loading, setLoading] = useState(false)
-  const [rates, setRates] = useState<Rate[]>([])
-  const [selectedRate, setSelectedRate] = useState<string>("")
-  const [purchasedLabel, setPurchasedLabel] = useState<any>(null)
-
-  // Package details
-  const [packageType, setPackageType] = useState("package")
-  const [length, setLength] = useState("10")
-  const [width, setWidth] = useState("8")
+export default function CreateLabelClient({ order, seller, user }: CreateLabelClientProps) {
+  const router = useRouter()
+  const [length, setLength] = useState("12")
+  const [width, setWidth] = useState("9")
   const [height, setHeight] = useState("6")
-  const [weightLbs, setWeightLbs] = useState("1")
-  const [weightOz, setWeightOz] = useState("0")
+  const [weight, setWeight] = useState("16")
+  const [rates, setRates] = useState<any[]>([])
+  const [selectedRate, setSelectedRate] = useState<any>(null)
+  const [loadingRates, setLoadingRates] = useState(false)
+  const [purchasingLabel, setPurchasingLabel] = useState(false)
 
-  // Addresses
-  const shipFrom = user?.seller_address || {
-    name: "Your Store",
-    address_line1: "1246 NE 40th TER",
-    city_locality: "Miami",
-    state_province: "FL",
-    postal_code: "33334",
-    country_code: "US",
-  }
+  const handleGetRates = async () => {
+    if (!length || !width || !height || !weight) {
+      toast.error("Por favor ingresa todas las dimensiones y peso del paquete")
+      return
+    }
 
-  const shipTo = order?.shipping_address || {
-    name: "Customer Name",
-    address_line1: "5540 WASHINGTON ST APT B308",
-    city_locality: "Hollywood",
-    state_province: "FL",
-    postal_code: "33021",
-    country_code: "US",
-  }
+    setLoadingRates(true)
+    setRates([])
+    setSelectedRate(null)
 
-  const getRates = async () => {
-    setLoading(true)
     try {
-      const response = await fetch("/api/shipengine/rates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          shipFrom,
-          shipTo,
-          weight: {
-            value: Number.parseFloat(weightLbs) + Number.parseFloat(weightOz) / 16,
-            unit: "pound",
-          },
-          dimensions: {
-            length: Number.parseFloat(length),
-            width: Number.parseFloat(width),
-            height: Number.parseFloat(height),
-            unit: "inch",
-          },
-        }),
-      })
+      const result = await getRatesForOrder(
+        order.id,
+        Number.parseFloat(length),
+        Number.parseFloat(width),
+        Number.parseFloat(height),
+        Number.parseFloat(weight),
+        order.shipping_address,
+        seller.seller_address,
+        seller.seller_address?.full_name || seller.full_name,
+        seller.phone || seller.seller_address?.phone,
+      )
 
-      const data = await response.json()
-      if (data.rate_response?.rates) {
-        setRates(data.rate_response.rates)
+      if (result.success && result.rates) {
+        setRates(result.rates)
+        toast.success(`Se encontraron ${result.rates.length} opciones de envío`)
+      } else {
+        toast.error(result.error || "Error al obtener tarifas")
       }
     } catch (error) {
-      console.error("Error getting rates:", error)
+      console.error("[v0] Error getting rates:", error)
+      toast.error("Error al obtener tarifas de envío")
     } finally {
-      setLoading(false)
+      setLoadingRates(false)
     }
   }
 
-  const purchaseLabel = async () => {
-    if (!selectedRate) return
+  const handlePurchaseLabel = async () => {
+    if (!selectedRate) {
+      toast.error("Por favor selecciona una opción de envío")
+      return
+    }
 
-    setLoading(true)
+    setPurchasingLabel(true)
+
     try {
-      const response = await fetch("/api/shipengine/purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rateId: selectedRate,
-          orderId: order?.id,
-        }),
-      })
+      const result = await purchaseLabelForOrder(
+        order.id,
+        selectedRate.rate_id,
+        selectedRate.service_code,
+        Number.parseFloat(length),
+        Number.parseFloat(width),
+        Number.parseFloat(height),
+        Number.parseFloat(weight),
+      )
 
-      const data = await response.json()
-      if (data.label_download?.pdf) {
-        setPurchasedLabel(data)
-        // Open label in new tab
-        window.open(data.label_download.pdf, "_blank")
+      if (result.success) {
+        toast.success("¡Etiqueta comprada exitosamente!")
+
+        // Download the label PDF
+        if (result.label_url) {
+          const link = document.createElement("a")
+          link.href = result.label_url
+          link.download = `etiqueta-${result.tracking_number}.pdf`
+          link.target = "_blank"
+          document.body.appendChild(link)
+          link.click()
+          document.body.removeChild(link)
+        }
+
+        // Redirect to orders page after a short delay
+        setTimeout(() => {
+          router.push("/orders")
+        }, 2000)
+      } else {
+        toast.error(result.error || "Error al comprar etiqueta")
       }
     } catch (error) {
-      console.error("Error purchasing label:", error)
+      console.error("[v0] Error purchasing label:", error)
+      toast.error("Error al comprar etiqueta de envío")
     } finally {
-      setLoading(false)
+      setPurchasingLabel(false)
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <SiteHeader user={user} />
+      <SiteHeader user={user} showSearch={false} />
 
-      <div className="container mx-auto py-8 px-4 max-w-5xl">
-        <h1 className="text-3xl font-bold mb-8">Crear Etiqueta de Envío</h1>
-
-        <div className="grid gap-6 md:grid-cols-2 mb-6">
-          {/* Ship From */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Enviar Desde</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm">
-              <p className="font-medium">{shipFrom.name}</p>
-              <p>{shipFrom.address_line1}</p>
-              <p>
-                {shipFrom.city_locality}, {shipFrom.state_province} {shipFrom.postal_code}
-              </p>
-              <p>{shipFrom.country_code}</p>
-            </CardContent>
-          </Card>
-
-          {/* Ship To */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Enviar A</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm">
-              <p className="font-medium">{shipTo.name}</p>
-              <p>{shipTo.address_line1}</p>
-              <p>
-                {shipTo.city_locality}, {shipTo.state_province} {shipTo.postal_code}
-              </p>
-              <p>{shipTo.country_code}</p>
-            </CardContent>
-          </Card>
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold mb-2">Crear Etiqueta de Envío</h1>
+          <p className="text-gray-600">Pedido #{order.id.slice(0, 8)}</p>
         </div>
 
-        {/* Package Details */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Detalles del Paquete
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label>Tipo de Paquete</Label>
-                <Select value={packageType} onValueChange={setPackageType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="package">Paquete</SelectItem>
-                    <SelectItem value="flat_rate_envelope">Sobre Tarifa Plana</SelectItem>
-                    <SelectItem value="flat_rate_padded_envelope">Sobre Acolchado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <Label>Dimensiones (pulgadas)</Label>
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                <Input type="number" placeholder="Largo" value={length} onChange={(e) => setLength(e.target.value)} />
-                <Input type="number" placeholder="Ancho" value={width} onChange={(e) => setWidth(e.target.value)} />
-                <Input type="number" placeholder="Alto" value={height} onChange={(e) => setHeight(e.target.value)} />
-              </div>
-            </div>
-
-            <div>
-              <Label>Peso</Label>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <div>
-                  <Input
-                    type="number"
-                    placeholder="Libras"
-                    value={weightLbs}
-                    onChange={(e) => setWeightLbs(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">lbs</p>
-                </div>
-                <div>
-                  <Input
-                    type="number"
-                    placeholder="Onzas"
-                    value={weightOz}
-                    onChange={(e) => setWeightOz(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">oz</p>
-                </div>
-              </div>
-            </div>
-
-            <Button onClick={getRates} disabled={loading} className="w-full">
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Calculando...
-                </>
-              ) : (
-                "Calcular Tarifas"
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Rates */}
-        {rates.length > 0 && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Truck className="h-5 w-5" />
-                Seleccionar Servicio de Envío
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {rates.map((rate) => (
-                <div
-                  key={rate.rate_id}
-                  onClick={() => setSelectedRate(rate.rate_id)}
-                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                    selectedRate === rate.rate_id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-medium">{rate.service_type}</p>
-                      <p className="text-sm text-gray-600">
-                        {rate.carrier_friendly_name} • {rate.delivery_days} días
-                      </p>
-                    </div>
-                    <p className="text-lg font-bold">${rate.shipping_amount.amount.toFixed(2)}</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Package Info & Rates */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Package Dimensions */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="w-5 h-5" />
+                  Dimensiones del Paquete
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label htmlFor="length">Largo (in)</Label>
+                    <Input
+                      id="length"
+                      type="number"
+                      value={length}
+                      onChange={(e) => setLength(e.target.value)}
+                      placeholder="12"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="width">Ancho (in)</Label>
+                    <Input
+                      id="width"
+                      type="number"
+                      value={width}
+                      onChange={(e) => setWidth(e.target.value)}
+                      placeholder="9"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="height">Alto (in)</Label>
+                    <Input
+                      id="height"
+                      type="number"
+                      value={height}
+                      onChange={(e) => setHeight(e.target.value)}
+                      placeholder="6"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="weight">Peso (oz)</Label>
+                    <Input
+                      id="weight"
+                      type="number"
+                      value={weight}
+                      onChange={(e) => setWeight(e.target.value)}
+                      placeholder="16"
+                    />
                   </div>
                 </div>
-              ))}
 
-              <Button onClick={purchaseLabel} disabled={!selectedRate || loading} className="w-full mt-4" size="lg">
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Comprando...
-                  </>
-                ) : (
-                  "Comprar Etiqueta Ahora"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+                <Button onClick={handleGetRates} disabled={loadingRates} className="w-full" size="lg">
+                  {loadingRates ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Obteniendo Tarifas...
+                    </>
+                  ) : (
+                    <>
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      Obtener Tarifas de Envío
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
 
-        {/* Success Message */}
-        {purchasedLabel && (
-          <Card className="border-green-500 bg-green-50">
-            <CardContent className="pt-6">
-              <p className="text-green-800 font-medium">
-                ¡Etiqueta comprada exitosamente! El PDF se abrió en una nueva pestaña.
-              </p>
-              <p className="text-sm text-green-700 mt-2">Tracking: {purchasedLabel.tracking_number}</p>
-            </CardContent>
-          </Card>
-        )}
+            {/* Shipping Rates */}
+            {rates.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Truck className="w-5 h-5" />
+                    Opciones de Envío ({rates.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {rates.map((rate) => (
+                    <div
+                      key={rate.rate_id}
+                      onClick={() => setSelectedRate(rate)}
+                      className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                        selectedRate?.rate_id === rate.rate_id
+                          ? "border-blue-600 bg-blue-50"
+                          : "border-gray-200 hover:border-blue-300"
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-lg">{rate.carrier_friendly_name}</p>
+                            {selectedRate?.rate_id === rate.rate_id && (
+                              <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600">{rate.service_type}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-green-600">
+                            ${Number.parseFloat(rate.shipping_amount?.amount || "0").toFixed(2)}
+                          </p>
+                          {rate.other_amount?.amount && Number.parseFloat(rate.other_amount.amount) > 0 && (
+                            <p className="text-xs text-gray-500">
+                              + ${Number.parseFloat(rate.other_amount.amount).toFixed(2)} otros cargos
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {rate.delivery_days && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                          <Clock className="w-4 h-4" />
+                          <span>
+                            Entrega estimada: {rate.delivery_days} día{rate.delivery_days > 1 ? "s" : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {rate.estimated_delivery_date && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Fecha estimada: {new Date(rate.estimated_delivery_date).toLocaleDateString("es-ES")}
+                        </p>
+                      )}
+
+                      {rate.trackable && (
+                        <Badge variant="secondary" className="mt-2">
+                          Rastreable
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+
+                  {selectedRate && (
+                    <Button
+                      onClick={handlePurchaseLabel}
+                      disabled={purchasingLabel}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      size="lg"
+                    >
+                      {purchasingLabel ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Comprando Etiqueta...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Comprar Etiqueta - $
+                          {Number.parseFloat(selectedRate.shipping_amount?.amount || "0").toFixed(2)}
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Right Column - Order Summary */}
+          <div className="space-y-6">
+            {/* Shipping Address */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Dirección de Envío</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <p className="font-semibold">{order.shipping_address.full_name}</p>
+                  <p>{order.shipping_address.address_line1}</p>
+                  {order.shipping_address.address_line2 && <p>{order.shipping_address.address_line2}</p>}
+                  <p>
+                    {order.shipping_address.city}, {order.shipping_address.state} {order.shipping_address.postal_code}
+                  </p>
+                  <p>{order.shipping_address.country}</p>
+                  <p className="text-gray-600">Tel: {order.shipping_address.phone}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Order Items */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Productos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {order.items.map((item: any) => (
+                    <div key={item.id} className="flex gap-3">
+                      <img
+                        src={item.product.image_url || "/placeholder.svg"}
+                        alt={item.product.title}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium line-clamp-2">{item.product.title}</p>
+                        <p className="text-xs text-gray-600">Cantidad: {item.quantity}</p>
+                        <p className="text-sm font-semibold">${item.price_at_purchase}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">Total:</span>
+                    <span className="text-lg font-bold text-green-600">
+                      $
+                      {order.items
+                        .reduce((sum: number, item: any) => sum + item.price_at_purchase * item.quantity, 0)
+                        .toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -268,21 +268,7 @@ export default function OrdersPageClient({ user, orders = [] }: OrdersPageClient
         return
       }
 
-      const params = new URLSearchParams({
-        orderId: order.id,
-        orderNumber: order.id.slice(0, 8),
-        buyerName: order.shipping_address.full_name,
-        buyerEmail: order.buyer_email || "",
-        addressLine1: order.shipping_address.address_line1,
-        addressLine2: order.shipping_address.address_line2 || "",
-        city: order.shipping_address.city,
-        state: order.shipping_address.state,
-        postalCode: order.shipping_address.postal_code,
-        country: order.shipping_address.country,
-        phone: order.shipping_address.phone,
-      })
-
-      router.push(`/createlabel1?${params.toString()}`)
+      router.push(`/createlabel1?orderId=${order.id}`)
     } catch (error) {
       console.error("[v0] Error buying shipping:", error)
       toast.error("Error al procesar el envío")

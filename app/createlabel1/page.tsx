@@ -7,41 +7,55 @@ export const dynamic = "force-dynamic"
 export default async function CreateLabelPage({
   searchParams,
 }: {
-  searchParams: { orderId?: string }
+  searchParams: { [key: string]: string | string[] | undefined }
 }) {
-  const supabase = createClient()
-
-  if (!supabase) {
-    redirect("/auth/login")
-  }
-
+  const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Middleware already redirects if no user, but double-check
   if (!user) {
     redirect("/auth/login")
   }
 
-  // Get user profile
-  const { data: profile } = await supabase.from("users").select("*").eq("id", user.id).single()
+  const orderId = searchParams.orderId as string
 
-  // Get order if orderId is provided
-  let order = null
-  if (searchParams.orderId) {
-    const { data } = await supabase
-      .from("orders")
-      .select(`
-        *,
-        order_items (
-          *,
-          products (*)
-        )
-      `)
-      .eq("id", searchParams.orderId)
-      .single()
-    order = data
+  if (!orderId) {
+    redirect("/orders")
   }
 
-  return <CreateLabelClient user={profile} order={order} />
+  // Get order details
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select(
+      `
+      *,
+      items:order_items(
+        *,
+        product:products(*)
+      )
+    `,
+    )
+    .eq("id", orderId)
+    .single()
+
+  if (orderError || !order) {
+    redirect("/orders")
+  }
+
+  // Get seller info
+  const sellerId = order.items[0]?.product?.seller_id
+
+  if (!sellerId) {
+    redirect("/orders")
+  }
+
+  const { data: seller } = await supabase
+    .from("users")
+    .select("full_name, phone, seller_address")
+    .eq("id", sellerId)
+    .single()
+
+  return <CreateLabelClient order={order} seller={seller} user={user} />
 }

@@ -52,7 +52,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Define routes that require authentication
-    const protectedRoutes = ["/seller", "/admin", "/orders"]
+    const protectedRoutes = ["/seller", "/admin", "/orders", "/createlabel1"]
     const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
     // Redirect to login only if accessing protected routes without authentication
