@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
-import { loginWithPassword } from "@/app/actions/auth"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -24,29 +23,32 @@ export default function LoginPage() {
     setIsLoading(true)
     setError(null)
 
-    console.log("[v0] 🔐 Attempting login with email:", email)
+    const supabase = createClient()
 
     try {
-      const result = await loginWithPassword(email, password)
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      console.log("[v0] 🔐 Login response:", result)
-
-      if (!result.success) {
-        console.error("[v0] ❌ Login error:", result.error)
-        if (result.error === "Invalid login credentials") {
+      if (error) {
+        if (error.message === "Invalid login credentials") {
           throw new Error(
             "Credenciales inválidas. Si te registraste con Google, usa el botón 'Continuar con Google' o restablece tu contraseña.",
           )
         }
-        throw new Error(result.error)
+        throw error
       }
 
-      console.log("[v0] ✅ Login successful, redirecting...")
+      if (!data.user) {
+        throw new Error("No se pudo iniciar sesión")
+      }
+
+      // Redirect to home page
       router.push("/")
       router.refresh()
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An error occurred"
-      console.error("[v0] ❌ Login failed:", errorMessage)
       setError(errorMessage)
     } finally {
       setIsLoading(false)
