@@ -25,18 +25,17 @@ export async function updateSession(request: NextRequest) {
     },
   )
 
-  // This is critical for SSR authentication to work correctly
-  const { data } = await supabase.auth.getClaims()
-  const user = data?.claims
-
-  console.log("[v0] Middleware - User:", user ? user.email : "No user")
+  // IMPORTANT: Do not run code between createServerClient and supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // Define routes that require authentication
   const protectedRoutes = ["/seller", "/admin", "/orders", "/createlabel1"]
   const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
   // Redirect to login only if accessing protected routes without authentication
-  if (!user && isProtectedRoute && request.method === "GET") {
+  if (!user && isProtectedRoute && !request.nextUrl.pathname.startsWith("/auth")) {
     const url = request.nextUrl.clone()
     url.pathname = "/auth/login"
     return NextResponse.redirect(url)
@@ -44,7 +43,7 @@ export async function updateSession(request: NextRequest) {
 
   // Check admin role for admin routes
   if (user && request.nextUrl.pathname.startsWith("/admin")) {
-    const { data: userProfile } = await supabase.from("users").select("role").eq("id", user.sub).single()
+    const { data: userProfile } = await supabase.from("users").select("role").eq("id", user.id).single()
 
     if (userProfile?.role !== "admin") {
       const url = request.nextUrl.clone()
@@ -53,5 +52,6 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // IMPORTANT: You must return the supabaseResponse object as it is
   return supabaseResponse
 }
