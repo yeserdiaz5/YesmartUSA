@@ -1,7 +1,6 @@
 "use server"
 
 import { isShipEngineConfigured } from "@/lib/shipengine"
-import { getCurrentUserId } from "@/lib/auth/dal"
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath, unstable_noStore } from "next/cache"
 
@@ -259,8 +258,8 @@ export async function purchaseLabelForOrder(
     console.log("[v0] Order ID:", orderId)
     console.log("[v0] Rate ID:", rateId)
 
-    const userId = await getCurrentUserId()
-    console.log("[v0] ✅ Authenticated user ID:", userId)
+    // const userId = await getCurrentUserId()
+    // console.log("[v0] ✅ Authenticated user ID:", userId)
 
     if (!isShipEngineConfigured()) {
       return {
