@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 
 export async function loginWithPassword(email: string, password: string) {
   const supabase = await createClient()
@@ -26,28 +25,7 @@ export async function loginWithPassword(email: string, password: string) {
 
   console.log("[v0] loginWithPassword - Success, user:", data.user?.email)
 
-  if (data.session) {
-    const cookieStore = await cookies()
-
-    console.log("[v0] loginWithPassword - Setting cookies")
-
-    cookieStore.set("sb-access-token", data.session.access_token, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: false, // Changed httpOnly back to false so cookies can be read by middleware
-    })
-    cookieStore.set("sb-refresh-token", data.session.refresh_token, {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: false, // Changed httpOnly back to false so cookies can be read by middleware
-    })
-
-    console.log("[v0] loginWithPassword - Cookies set successfully")
-  }
+  // The createServerClient configuration in lib/supabase/server.ts handles cookie management
 
   revalidatePath("/", "layout")
   return {
@@ -59,11 +37,8 @@ export async function loginWithPassword(email: string, password: string) {
 export async function logout() {
   const supabase = await createClient()
 
-  const cookieStore = await cookies()
-  cookieStore.delete("sb-access-token")
-  cookieStore.delete("sb-refresh-token")
-
   await supabase.auth.signOut()
+
   revalidatePath("/", "layout")
   redirect("/")
 }

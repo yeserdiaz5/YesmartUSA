@@ -11,8 +11,6 @@ interface SiteHeaderProps {
 }
 
 export function SiteHeader({ user }: SiteHeaderProps) {
-  console.log("[v0] SiteHeader rendered with user:", user ? { id: user.id, email: user.email } : null)
-
   return (
     <header className="bg-blue-600 text-white sticky top-0 z-50 shadow-md">
       <div className="container mx-auto px-4">

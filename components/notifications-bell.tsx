@@ -31,12 +31,13 @@ export function NotificationsBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [isOpen, setIsOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
+    setMounted(true)
     loadNotifications()
 
-    // Subscribe to real-time notifications
     const supabase = createClient()
     const channel = supabase
       .channel("notifications")
@@ -119,12 +120,14 @@ export function NotificationsBell() {
                   <div className="flex-1">
                     <div className="font-medium text-sm">{notification.title}</div>
                     <div className="text-xs text-muted-foreground mt-1">{notification.message}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {formatDistanceToNow(new Date(notification.created_at), {
-                        addSuffix: true,
-                        locale: es,
-                      })}
-                    </div>
+                    {mounted && (
+                      <div className="text-xs text-muted-foreground mt-1" suppressHydrationWarning>
+                        {formatDistanceToNow(new Date(notification.created_at), {
+                          addSuffix: true,
+                          locale: es,
+                        })}
+                      </div>
+                    )}
                   </div>
                   {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1" />}
                 </div>

@@ -19,11 +19,6 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ user }: UserMenuProps) {
-  console.log(
-    "[v0] UserMenu rendered with user:",
-    user ? { id: user.id, email: user.email, full_name: user.full_name } : null,
-  )
-
   if (!user) {
     return (
       <div className="flex items-center gap-2">
