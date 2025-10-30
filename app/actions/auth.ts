@@ -4,9 +4,12 @@ import { createClient } from "@/lib/supabase/server"
 import { createAdminClient } from "@/lib/supabase/admin"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
+import { cookies } from "next/headers"
 
 export async function loginWithPassword(email: string, password: string) {
   const supabase = await createClient()
+
+  console.log("[v0] loginWithPassword - Attempting login for:", email)
 
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
@@ -14,10 +17,36 @@ export async function loginWithPassword(email: string, password: string) {
   })
 
   if (error) {
+    console.error("[v0] loginWithPassword - Error:", error)
     return {
       success: false,
       error: error.message,
     }
+  }
+
+  console.log("[v0] loginWithPassword - Success, user:", data.user?.email)
+
+  if (data.session) {
+    const cookieStore = await cookies()
+
+    console.log("[v0] loginWithPassword - Setting cookies")
+
+    cookieStore.set("sb-access-token", data.session.access_token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: false, // Changed httpOnly back to false so cookies can be read by middleware
+    })
+    cookieStore.set("sb-refresh-token", data.session.refresh_token, {
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: false, // Changed httpOnly back to false so cookies can be read by middleware
+    })
+
+    console.log("[v0] loginWithPassword - Cookies set successfully")
   }
 
   revalidatePath("/", "layout")
@@ -30,8 +59,11 @@ export async function loginWithPassword(email: string, password: string) {
 export async function logout() {
   const supabase = await createClient()
 
-  await supabase.auth.signOut()
+  const cookieStore = await cookies()
+  cookieStore.delete("sb-access-token")
+  cookieStore.delete("sb-refresh-token")
 
+  await supabase.auth.signOut()
   revalidatePath("/", "layout")
   redirect("/")
 }

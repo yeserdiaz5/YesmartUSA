@@ -245,6 +245,7 @@ export async function getRatesForOrder(
 export async function purchaseLabelForOrder(
   orderId: string,
   rateId: string,
+  serviceCode: string,
   length: number,
   width: number,
   height: number,
@@ -264,13 +265,7 @@ export async function purchaseLabelForOrder(
       }
     }
 
-    const { createClient } = await import("@supabase/supabase-js")
-    const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    })
+    const supabase = await createClient()
 
     const { data: orderItems, error: orderItemsError } = await supabase
       .from("order_items")
@@ -336,7 +331,7 @@ export async function purchaseLabelForOrder(
 
     const labelRequest = {
       shipment: {
-        service_code: order.selected_service_code,
+        service_code: serviceCode,
         ship_to: {
           name: buyerAddress.full_name || "Customer",
           phone: formatPhone(buyerAddress.phone),
