@@ -313,33 +313,35 @@ export default function CreateShippoLabelPage() {
       }
 
       console.log("[v0] Label created successfully:", data)
+      console.log("[v0] Label URL from API:", data.data.label_url)
+      console.log("[v0] Tracking number from API:", data.data.tracking_number)
 
       const supabase = createClient()
 
-      await supabase
-        .from("orders")
-        .update({
-          tracking_number: data.data.tracking_number,
-          shipping_carrier: data.data.provider || selectedRate.provider,
-          status: "shipped",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId)
+      const shipmentToSave = {
+        order_id: orderId,
+        tracking_number: data.data.tracking_number,
+        carrier: data.data.provider || selectedRate.provider,
+        status: "label_created",
+        label_url: data.data.label_url,
+        tracking_url: data.data.tracking_url_provider,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      console.log("[v0] Saving shipment to database:", shipmentToSave)
 
-      const { data: shipmentData } = await supabase
+      const { data: shipmentData, error: shipmentError } = await supabase
         .from("shipments")
-        .insert({
-          order_id: orderId,
-          tracking_number: data.data.tracking_number,
-          carrier: data.data.provider || selectedRate.provider,
-          status: "label_created",
-          label_url: data.data.label_url,
-          tracking_url: data.data.tracking_url_provider,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .insert(shipmentToSave)
         .select()
         .single()
+
+      if (shipmentError) {
+        console.error("[v0] Error saving shipment to database:", shipmentError)
+      } else {
+        console.log("[v0] Shipment saved successfully:", shipmentData)
+        console.log("[v0] Saved label_url:", shipmentData.label_url)
+      }
 
       if (shipmentData) {
         setExistingShipment(shipmentData as Shipment)
@@ -348,7 +350,10 @@ export default function CreateShippoLabelPage() {
       setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido")
 
       if (data.data.label_url) {
+        console.log("[v0] Opening label PDF:", data.data.label_url)
         window.open(data.data.label_url, "_blank")
+      } else {
+        console.error("[v0] No label_url available to open!")
       }
     } catch (err) {
       console.error("[v0] Error creating label:", err)

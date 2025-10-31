@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
     let transactionBody: any
 
     if (rate_id) {
-      // If we have a rate_id, use it directly
       transactionBody = {
         rate: rate_id,
         label_file_type: "PDF",
@@ -57,11 +56,18 @@ export async function POST(request: NextRequest) {
 
     const shipmentData = await response.json()
 
-    console.log("[v0] Shippo response:", { status: shipmentData.status, tracking_number: shipmentData.tracking_number })
+    console.log("[v0] Shippo full response:", JSON.stringify(shipmentData, null, 2))
+    console.log("[v0] Shippo response status:", shipmentData.status)
+    console.log("[v0] Shippo label_url:", shipmentData.label_url)
+    console.log("[v0] Shippo tracking_number:", shipmentData.tracking_number)
 
     if (!response.ok || shipmentData.status === "ERROR") {
       console.error("[v0] Shippo API error:", shipmentData)
       throw new Error(shipmentData.messages?.[0]?.text || "Error creating shipment")
+    }
+
+    if (!shipmentData.label_url) {
+      console.error("[v0] WARNING: No label_url in Shippo response!")
     }
 
     if (shipmentData.status === "SUCCESS" && seller_email) {
@@ -81,6 +87,13 @@ export async function POST(request: NextRequest) {
         console.error("[v0] Error sending seller email (non-fatal):", emailError)
       }
     }
+
+    console.log("[v0] Returning to frontend:", {
+      success: true,
+      has_label_url: !!shipmentData.label_url,
+      label_url: shipmentData.label_url,
+      tracking_number: shipmentData.tracking_number,
+    })
 
     return NextResponse.json({
       success: true,
