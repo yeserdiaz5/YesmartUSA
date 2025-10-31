@@ -274,6 +274,35 @@ export default function CreateShippoLabelPage() {
         body: JSON.stringify({
           rate_id: selectedRate.object_id,
           order_id: orderId,
+          to_address: {
+            name: order.customer_name,
+            street1: order.shipping_street,
+            city: order.shipping_city,
+            state: order.shipping_state,
+            zip: order.shipping_zip,
+            country: order.shipping_country || "US",
+            phone: order.shipping_phone,
+            email: order.customer_email,
+          },
+          from_address: {
+            name: sellerAddress.name,
+            street1: sellerAddress.street1,
+            city: sellerAddress.city,
+            state: sellerAddress.state,
+            zip: sellerAddress.zip,
+            country: sellerAddress.country || "US",
+            phone: sellerAddress.phone,
+            email: sellerAddress.email,
+          },
+          parcel: {
+            length: packageDimensions.length,
+            width: packageDimensions.width,
+            height: packageDimensions.height,
+            weight: packageDimensions.weight,
+            distance_unit: "in",
+            mass_unit: "lb",
+          },
+          seller_email: sellerAddress.email,
         }),
       })
 
@@ -283,13 +312,15 @@ export default function CreateShippoLabelPage() {
         throw new Error(data.error || "Error creando la etiqueta")
       }
 
+      console.log("[v0] Label created successfully:", data)
+
       const supabase = createClient()
 
       await supabase
         .from("orders")
         .update({
-          tracking_number: data.tracking_number,
-          shipping_carrier: data.carrier || selectedRate.provider,
+          tracking_number: data.data.tracking_number,
+          shipping_carrier: data.data.provider || selectedRate.provider,
           status: "shipped",
           updated_at: new Date().toISOString(),
         })
@@ -299,11 +330,11 @@ export default function CreateShippoLabelPage() {
         .from("shipments")
         .insert({
           order_id: orderId,
-          tracking_number: data.tracking_number,
-          carrier: data.carrier || selectedRate.provider,
+          tracking_number: data.data.tracking_number,
+          carrier: data.data.provider || selectedRate.provider,
           status: "label_created",
-          label_url: data.label_url,
-          tracking_url: data.tracking_url_provider,
+          label_url: data.data.label_url,
+          tracking_url: data.data.tracking_url_provider,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -316,8 +347,8 @@ export default function CreateShippoLabelPage() {
 
       setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido")
 
-      if (data.label_url) {
-        window.open(data.label_url, "_blank")
+      if (data.data.label_url) {
+        window.open(data.data.label_url, "_blank")
       }
     } catch (err) {
       console.error("[v0] Error creating label:", err)
@@ -481,7 +512,7 @@ export default function CreateShippoLabelPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Contacto:</p>
                     <p className="text-sm">{sellerAddress.email}</p>
-                    {sellerAddress.phone && <p className="text-sm">{sellerAddress.phone}</p>}
+                    <p className="text-sm">{sellerAddress.phone || "No disponible"}</p>
                   </div>
                 </>
               ) : (
