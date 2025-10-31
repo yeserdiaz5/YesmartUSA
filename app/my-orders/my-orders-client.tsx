@@ -116,16 +116,9 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     const firstShipment = hasShipment ? orderShipments[order.id][0] : null
     const hasLabel = order.status === "shipped" || (hasShipment && firstShipment?.tracking_number)
     const canCancel = order.status === "paid" || order.status === "pending"
+
     const labelUrl = firstShipment?.label_storage_url || firstShipment?.label_url || order.label_url
     const isLabelExpired = firstShipment?.expires_at && new Date(firstShipment.expires_at) < new Date()
-
-    console.log("[v0] OrderCard for order", order.id, ":", {
-      hasShipment,
-      hasLabel,
-      labelUrl,
-      isLabelExpired,
-      expires_at: firstShipment?.expires_at,
-    })
 
     const handleReprintLabel = () => {
       if (isLabelExpired) {
@@ -215,9 +208,9 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                 )}
                 <Button
                   onClick={handleReprintLabel}
-                  variant={isLabelExpired ? "destructive" : "outline"}
+                  variant={isLabelExpired ? "destructive" : "default"}
+                  disabled={!labelUrl}
                   className="flex-1"
-                  disabled={!labelUrl && !isLabelExpired}
                 >
                   <Printer className="w-4 h-4 mr-2" />
                   {isLabelExpired ? "Etiqueta Expirada" : "Reimprimir Etiqueta"}

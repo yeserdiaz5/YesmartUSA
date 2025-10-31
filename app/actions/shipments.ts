@@ -17,6 +17,11 @@ export interface Shipment {
   notes?: string
   created_at: string
   updated_at: string
+  label_url?: string
+  tracking_url?: string
+  label_storage_url?: string
+  expires_at?: string
+  storage_path?: string
 }
 
 export interface CreateShipmentData {
@@ -117,7 +122,9 @@ export async function getOrderShipments(orderId: string) {
 
     const { data: shipments, error } = await supabase
       .from("shipments")
-      .select("*")
+      .select(
+        "id, order_id, tracking_number, carrier, status, shipped_at, estimated_delivery, delivered_at, notes, created_at, updated_at, label_url, tracking_url, label_storage_url, expires_at, storage_path",
+      )
       .eq("order_id", orderId)
       .order("created_at", { ascending: false })
 
