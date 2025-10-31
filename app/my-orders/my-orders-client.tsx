@@ -116,16 +116,29 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     const firstShipment = hasShipment ? orderShipments[order.id][0] : null
     const hasLabel = order.status === "shipped" || (hasShipment && firstShipment?.tracking_number)
     const canCancel = order.status === "paid" || order.status === "pending"
-    const labelUrl = firstShipment?.label_url || order.label_url
+    const labelUrl = firstShipment?.label_storage_url || firstShipment?.label_url || order.label_url
+    const isLabelExpired = firstShipment?.expires_at && new Date(firstShipment.expires_at) < new Date()
 
     console.log("[v0] OrderCard for order", order.id, ":", {
       hasShipment,
       hasLabel,
       labelUrl,
-      firstShipment_label_url: firstShipment?.label_url,
-      order_label_url: order.label_url,
-      order_status: order.status,
+      isLabelExpired,
+      expires_at: firstShipment?.expires_at,
     })
+
+    const handleReprintLabel = () => {
+      if (isLabelExpired) {
+        alert("Esta etiqueta expiró, genera una nueva etiqueta")
+        return
+      }
+
+      if (labelUrl) {
+        window.open(labelUrl, "_blank")
+      } else {
+        alert("La etiqueta de envío no está disponible. Por favor, contacta al vendedor.")
+      }
+    }
 
     return (
       <Card key={order.id}>
@@ -201,21 +214,21 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                   </Button>
                 )}
                 <Button
-                  onClick={() => {
-                    if (labelUrl) {
-                      window.open(labelUrl, "_blank")
-                    } else {
-                      alert("La etiqueta de envío no está disponible. Por favor, contacta al vendedor.")
-                    }
-                  }}
-                  variant="outline"
+                  onClick={handleReprintLabel}
+                  variant={isLabelExpired ? "destructive" : "outline"}
                   className="flex-1"
-                  disabled={!labelUrl}
+                  disabled={!labelUrl && !isLabelExpired}
                 >
                   <Printer className="w-4 h-4 mr-2" />
-                  Reimprimir Etiqueta
+                  {isLabelExpired ? "Etiqueta Expirada" : "Reimprimir Etiqueta"}
                 </Button>
               </div>
+
+              {firstShipment?.expires_at && !isLabelExpired && (
+                <p className="text-xs text-gray-600 mt-2 text-center">
+                  La etiqueta expira el {new Date(firstShipment.expires_at).toLocaleDateString("es-ES")}
+                </p>
+              )}
             </div>
           ) : order.status === "paid" ? (
             <div className="space-y-3">

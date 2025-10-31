@@ -43,6 +43,8 @@ interface Shipment {
   label_url: string
   tracking_url: string
   status: string
+  storage_path?: string
+  expires_at?: string
 }
 
 interface ShippingRate {
@@ -313,10 +315,13 @@ export default function CreateShippoLabelPage() {
       }
 
       console.log("[v0] Label created successfully:", data)
-      console.log("[v0] Label URL from API:", data.data.label_url)
-      console.log("[v0] Tracking number from API:", data.data.tracking_number)
+      const labelUrl = data.data.label_storage_url || data.data.label_url
+      console.log("[v0] Label URL to save:", labelUrl)
 
       const supabase = createClient()
+
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 90)
 
       const shipmentToSave = {
         order_id: orderId,
@@ -324,7 +329,10 @@ export default function CreateShippoLabelPage() {
         carrier: data.data.provider || selectedRate.provider,
         status: "label_created",
         label_url: data.data.label_url,
+        label_storage_url: data.data.label_storage_url, // Save Vercel Blob URL
         tracking_url: data.data.tracking_url_provider,
+        storage_path: data.data.storage_path,
+        expires_at: expiresAt.toISOString(), // Save expiration date (90 days)
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -340,7 +348,7 @@ export default function CreateShippoLabelPage() {
         console.error("[v0] Error saving shipment to database:", shipmentError)
       } else {
         console.log("[v0] Shipment saved successfully:", shipmentData)
-        console.log("[v0] Saved label_url:", shipmentData.label_url)
+        console.log("[v0] Saved label_storage_url:", shipmentData.label_storage_url)
       }
 
       if (shipmentData) {
@@ -349,9 +357,9 @@ export default function CreateShippoLabelPage() {
 
       setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido")
 
-      if (data.data.label_url) {
-        console.log("[v0] Opening label PDF:", data.data.label_url)
-        window.open(data.data.label_url, "_blank")
+      if (labelUrl) {
+        console.log("[v0] Opening label PDF:", labelUrl)
+        window.open(labelUrl, "_blank")
       } else {
         console.error("[v0] No label_url available to open!")
       }
