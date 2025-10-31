@@ -3,8 +3,10 @@ import { useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Package, ExternalLink, CheckCircle2, MapPin, User, Box, Printer } from "lucide-react"
+import { Loader2, Package, ExternalLink, CheckCircle2, MapPin, User, Box, Printer, Truck } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { SiteHeader } from "@/components/site-header"
 
@@ -43,6 +45,18 @@ interface Shipment {
   status: string
 }
 
+interface ShippingRate {
+  object_id: string
+  provider: string
+  servicelevel: {
+    name: string
+    token: string
+  }
+  amount: string
+  currency: string
+  estimated_days: number
+}
+
 export default function CreateShippoLabelPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -56,6 +70,15 @@ export default function CreateShippoLabelPage() {
   const [existingShipment, setExistingShipment] = useState<Shipment | null>(null)
   const [sellerAddress, setSellerAddress] = useState<any>(null)
   const [user, setUser] = useState<any>(null)
+  const [packageDimensions, setPackageDimensions] = useState({
+    length: "12",
+    width: "10",
+    height: "8",
+    weight: "1.0",
+  })
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([])
+  const [selectedRate, setSelectedRate] = useState<ShippingRate | null>(null)
+  const [loadingRates, setLoadingRates] = useState(false)
 
   useEffect(() => {
     const loadUser = async () => {
@@ -159,6 +182,13 @@ export default function CreateShippoLabelPage() {
             })
           }
         }
+
+        const totalItems = processedOrder.order_items.reduce((sum: number, item: any) => sum + item.quantity, 0)
+        const calculatedWeight = Math.max(1, totalItems * 0.5)
+        setPackageDimensions((prev) => ({
+          ...prev,
+          weight: calculatedWeight.toFixed(1),
+        }))
       } catch (err) {
         console.error("[v0] Error loading order data:", err)
         setError(err instanceof Error ? err.message : "Error loading order data")
@@ -170,18 +200,16 @@ export default function CreateShippoLabelPage() {
     loadOrderData()
   }, [orderId])
 
-  const handleCreateLabel = async () => {
+  const handleGetRates = async () => {
     if (!order || !sellerAddress) return
 
-    setLoading(true)
+    setLoadingRates(true)
     setError("")
-    setSuccessMessage("")
+    setShippingRates([])
+    setSelectedRate(null)
 
     try {
-      const totalItems = order.order_items.reduce((sum, item) => sum + item.quantity, 0)
-      const weight = Math.max(1, totalItems * 0.5) // 0.5 lb per item, minimum 1 lb
-
-      const response = await fetch("/api/create-shipment", {
+      const response = await fetch("/api/get-shipping-rates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -206,13 +234,46 @@ export default function CreateShippoLabelPage() {
             email: sellerAddress.email,
           },
           parcel: {
-            length: "12",
-            width: "10",
-            height: "8",
-            weight: weight.toString(),
+            length: packageDimensions.length,
+            width: packageDimensions.width,
+            height: packageDimensions.height,
+            weight: packageDimensions.weight,
             distance_unit: "in",
             mass_unit: "lb",
           },
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Error obteniendo tarifas de envío")
+      }
+
+      console.log("[v0] Shipping rates received:", data.rates)
+      setShippingRates(data.rates || [])
+    } catch (err) {
+      console.error("[v0] Error fetching rates:", err)
+      setError(err instanceof Error ? err.message : "Error obteniendo tarifas de envío")
+    } finally {
+      setLoadingRates(false)
+    }
+  }
+
+  const handleCreateLabel = async () => {
+    if (!order || !sellerAddress || !selectedRate) return
+
+    setLoading(true)
+    setError("")
+    setSuccessMessage("")
+
+    try {
+      const response = await fetch("/api/create-shipment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rate_id: selectedRate.object_id,
+          order_id: orderId,
         }),
       })
 
@@ -228,7 +289,7 @@ export default function CreateShippoLabelPage() {
         .from("orders")
         .update({
           tracking_number: data.tracking_number,
-          shipping_carrier: data.carrier || "Shippo",
+          shipping_carrier: data.carrier || selectedRate.provider,
           status: "shipped",
           updated_at: new Date().toISOString(),
         })
@@ -239,7 +300,7 @@ export default function CreateShippoLabelPage() {
         .insert({
           order_id: orderId,
           tracking_number: data.tracking_number,
-          carrier: data.carrier || "Shippo",
+          carrier: data.carrier || selectedRate.provider,
           status: "label_created",
           label_url: data.label_url,
           tracking_url: data.tracking_url_provider,
@@ -253,9 +314,8 @@ export default function CreateShippoLabelPage() {
         setExistingShipment(shipmentData as Shipment)
       }
 
-      setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido ✅")
+      setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido")
 
-      // Open label in new tab
       if (data.label_url) {
         window.open(data.label_url, "_blank")
       }
@@ -472,31 +532,119 @@ export default function CreateShippoLabelPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div>
-                <p className="text-sm text-muted-foreground">Largo:</p>
-                <p className="font-medium">12 in</p>
+                <Label htmlFor="length">Largo (in)</Label>
+                <Input
+                  id="length"
+                  type="number"
+                  step="0.1"
+                  value={packageDimensions.length}
+                  onChange={(e) => setPackageDimensions((prev) => ({ ...prev, length: e.target.value }))}
+                  className="mt-1"
+                />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Ancho:</p>
-                <p className="font-medium">10 in</p>
+                <Label htmlFor="width">Ancho (in)</Label>
+                <Input
+                  id="width"
+                  type="number"
+                  step="0.1"
+                  value={packageDimensions.width}
+                  onChange={(e) => setPackageDimensions((prev) => ({ ...prev, width: e.target.value }))}
+                  className="mt-1"
+                />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Alto:</p>
-                <p className="font-medium">8 in</p>
+                <Label htmlFor="height">Alto (in)</Label>
+                <Input
+                  id="height"
+                  type="number"
+                  step="0.1"
+                  value={packageDimensions.height}
+                  onChange={(e) => setPackageDimensions((prev) => ({ ...prev, height: e.target.value }))}
+                  className="mt-1"
+                />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Peso:</p>
-                <p className="font-medium">
-                  {Math.max(1, order.order_items.reduce((sum, item) => sum + item.quantity, 0) * 0.5).toFixed(1)} lb
-                </p>
+                <Label htmlFor="weight">Peso (lb)</Label>
+                <Input
+                  id="weight"
+                  type="number"
+                  step="0.1"
+                  value={packageDimensions.weight}
+                  onChange={(e) => setPackageDimensions((prev) => ({ ...prev, weight: e.target.value }))}
+                  className="mt-1"
+                />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              * Dimensiones calculadas automáticamente basadas en los artículos del pedido
+            <p className="text-xs text-muted-foreground">
+              * Dimensiones calculadas automáticamente. Puedes editarlas según el paquete real.
             </p>
+
+            {!existingShipment && shippingRates.length === 0 && (
+              <Button
+                onClick={handleGetRates}
+                disabled={loadingRates || !sellerAddress}
+                className="mt-4 w-full bg-blue-600 hover:bg-blue-700"
+              >
+                {loadingRates ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Obteniendo Tarifas...
+                  </>
+                ) : (
+                  <>
+                    <Truck className="mr-2 h-4 w-4" />
+                    Ver Opciones de Envío
+                  </>
+                )}
+              </Button>
+            )}
           </CardContent>
         </Card>
+
+        {shippingRates.length > 0 && !existingShipment && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Truck className="h-5 w-5" />
+                Selecciona un Transportista
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {shippingRates.map((rate) => (
+                  <div
+                    key={rate.object_id}
+                    onClick={() => setSelectedRate(rate)}
+                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
+                      selectedRate?.object_id === rate.object_id
+                        ? "border-blue-600 bg-blue-50 dark:bg-blue-950"
+                        : "border-gray-200 hover:border-blue-300"
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-lg">{rate.provider}</p>
+                        <p className="text-sm text-muted-foreground">{rate.servicelevel.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Entrega estimada: {rate.estimated_days} {rate.estimated_days === 1 ? "día" : "días"}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-green-600">
+                          ${Number.parseFloat(rate.amount).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{rate.currency}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -515,10 +663,10 @@ export default function CreateShippoLabelPage() {
           <Button onClick={() => router.back()} variant="outline" className="flex-1">
             Volver
           </Button>
-          {!existingShipment && (
+          {!existingShipment && selectedRate && (
             <Button
               onClick={handleCreateLabel}
-              disabled={loading || !sellerAddress}
+              disabled={loading}
               className="flex-1 bg-green-600 hover:bg-green-700 text-white h-12 text-lg"
             >
               {loading ? (
