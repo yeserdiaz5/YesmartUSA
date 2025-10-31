@@ -2,16 +2,22 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Package, ExternalLink } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function CreateShippoLabelPage() {
+  const searchParams = useSearchParams()
+  const orderId = searchParams.get("order_id")
+
   const [loading, setLoading] = useState(false)
+  const [loadingOrder, setLoadingOrder] = useState(false)
   const [error, setError] = useState("")
   const [result, setResult] = useState<{
     tracking_number: string
@@ -44,6 +50,84 @@ export default function CreateShippoLabelPage() {
   const [width, setWidth] = useState("")
   const [height, setHeight] = useState("")
   const [weight, setWeight] = useState("")
+
+  useEffect(() => {
+    if (!orderId) return
+
+    const loadOrderData = async () => {
+      setLoadingOrder(true)
+      setError("")
+
+      try {
+        const supabase = createClient()
+
+        // Fetch order with buyer information
+        const { data: order, error: orderError } = await supabase
+          .from("orders")
+          .select("*, order_items(*, products(*))")
+          .eq("id", orderId)
+          .single()
+
+        if (orderError) throw orderError
+
+        if (!order) {
+          throw new Error("Order not found")
+        }
+
+        if (order.customer_name) setToName(order.customer_name)
+        if (order.shipping_street) setToStreet1(order.shipping_street)
+        if (order.shipping_city) setToCity(order.shipping_city)
+        if (order.shipping_state) setToState(order.shipping_state)
+        if (order.shipping_zip) setToZip(order.shipping_zip)
+        if (order.shipping_country) setToCountry(order.shipping_country)
+        if (order.customer_email) setToEmail(order.customer_email)
+
+        if (order.order_items && order.order_items.length > 0) {
+          const sellerId = order.order_items[0].seller_id
+
+          const { data: seller, error: sellerError } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", sellerId)
+            .single()
+
+          if (sellerError) throw sellerError
+
+          if (seller) {
+            if (seller.full_name) setFromName(seller.full_name)
+            if (seller.email) setFromEmail(seller.email)
+            if (seller.phone) setFromPhone(seller.phone)
+
+            // Parse seller_address if it exists
+            if (seller.seller_address) {
+              const address = seller.seller_address as any
+              if (address.street1) setFromStreet1(address.street1)
+              if (address.city) setFromCity(address.city)
+              if (address.state) setFromState(address.state)
+              if (address.zip) setFromZip(address.zip)
+              if (address.country) setFromCountry(address.country)
+            }
+          }
+
+          const firstProduct = order.order_items[0].products
+          if (firstProduct) {
+            // Set some default dimensions (you can adjust these)
+            setLength("12")
+            setWidth("10")
+            setHeight("8")
+            setWeight("2")
+          }
+        }
+      } catch (err) {
+        console.error("[v0] Error loading order data:", err)
+        setError(err instanceof Error ? err.message : "Error loading order data")
+      } finally {
+        setLoadingOrder(false)
+      }
+    }
+
+    loadOrderData()
+  }, [orderId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -119,8 +203,18 @@ export default function CreateShippoLabelPage() {
           <Package className="h-8 w-8" />
           Create Shipping Label
         </h1>
-        <p className="text-muted-foreground mt-2">Generate shipping labels with Shippo</p>
+        <p className="text-muted-foreground mt-2">
+          Generate shipping labels with Shippo
+          {orderId && <span className="ml-2 text-sm">(Order ID: {orderId})</span>}
+        </p>
       </div>
+
+      {loadingOrder && (
+        <Alert className="mb-6">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <AlertDescription>Loading order data...</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* From Address */}
@@ -318,7 +412,7 @@ export default function CreateShippoLabelPage() {
         {/* Submit Button */}
         <Button
           type="submit"
-          disabled={loading}
+          disabled={loading || loadingOrder}
           className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-lg"
         >
           {loading ? (
