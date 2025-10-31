@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Package, ExternalLink } from "lucide-react"
+import { Loader2, Package, ExternalLink, CheckCircle2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 export default function CreateShippoLabelPage() {
@@ -19,6 +19,7 @@ export default function CreateShippoLabelPage() {
   const [loading, setLoading] = useState(false)
   const [loadingOrder, setLoadingOrder] = useState(false)
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
   const [result, setResult] = useState<{
     tracking_number: string
     tracking_url_provider: string
@@ -134,6 +135,7 @@ export default function CreateShippoLabelPage() {
     setLoading(true)
     setError("")
     setResult(null)
+    setSuccessMessage("")
 
     try {
       const response = await fetch("/api/create-shipment", {
@@ -184,6 +186,51 @@ export default function CreateShippoLabelPage() {
         tracking_url_provider: data.tracking_url_provider,
         label_url: data.label_url,
       })
+
+      if (orderId) {
+        try {
+          const supabase = createClient()
+
+          // Update orders table with tracking info
+          const { error: updateError } = await supabase
+            .from("orders")
+            .update({
+              tracking_number: data.tracking_number,
+              shipping_carrier: data.carrier || "Shippo",
+              status: "label_created",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", orderId)
+
+          if (updateError) {
+            console.error("[v0] Error updating order:", updateError)
+            throw updateError
+          }
+
+          // Also create a shipment record for more detailed tracking
+          const { error: shipmentError } = await supabase.from("shipments").insert({
+            order_id: orderId,
+            tracking_number: data.tracking_number,
+            carrier: data.carrier || "Shippo",
+            status: "label_created",
+            label_url: data.label_url,
+            tracking_url: data.tracking_url_provider,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+
+          if (shipmentError) {
+            console.error("[v0] Error creating shipment:", shipmentError)
+            // Don't throw here, order update was successful
+          }
+
+          setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido ✅")
+        } catch (dbError) {
+          console.error("[v0] Database error:", dbError)
+          setError("Error al guardar la etiqueta en la base de datos.")
+          // Don't return, still show the label
+        }
+      }
 
       // Open label in new tab
       if (data.label_url) {
@@ -372,6 +419,13 @@ export default function CreateShippoLabelPage() {
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {successMessage && (
+          <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700 dark:text-green-300">{successMessage}</AlertDescription>
           </Alert>
         )}
 
