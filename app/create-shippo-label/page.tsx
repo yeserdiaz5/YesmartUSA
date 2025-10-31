@@ -1,59 +1,65 @@
 "use client"
-
-import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2, Package, ExternalLink, CheckCircle2 } from "lucide-react"
+import { Loader2, Package, ExternalLink, CheckCircle2, MapPin, User, Box, Printer } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+
+interface OrderItem {
+  id: string
+  quantity: number
+  price_at_purchase: number
+  products: {
+    id: string
+    title: string
+    image_url: string
+  }
+}
+
+interface Order {
+  id: string
+  customer_name: string
+  customer_email: string
+  shipping_street: string
+  shipping_city: string
+  shipping_state: string
+  shipping_zip: string
+  shipping_country: string
+  total_amount: number
+  tracking_number?: string
+  shipping_carrier?: string
+  order_items: OrderItem[]
+}
+
+interface Shipment {
+  tracking_number: string
+  carrier: string
+  label_url: string
+  tracking_url: string
+  status: string
+}
 
 export default function CreateShippoLabelPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const orderId = searchParams.get("order_id")
 
   const [loading, setLoading] = useState(false)
-  const [loadingOrder, setLoadingOrder] = useState(false)
+  const [loadingOrder, setLoadingOrder] = useState(true)
   const [error, setError] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
-  const [result, setResult] = useState<{
-    tracking_number: string
-    tracking_url_provider: string
-    label_url: string
-  } | null>(null)
-
-  // From Address (Seller)
-  const [fromName, setFromName] = useState("")
-  const [fromStreet1, setFromStreet1] = useState("")
-  const [fromCity, setFromCity] = useState("")
-  const [fromState, setFromState] = useState("")
-  const [fromZip, setFromZip] = useState("")
-  const [fromCountry, setFromCountry] = useState("US")
-  const [fromPhone, setFromPhone] = useState("")
-  const [fromEmail, setFromEmail] = useState("")
-
-  // To Address (Buyer)
-  const [toName, setToName] = useState("")
-  const [toStreet1, setToStreet1] = useState("")
-  const [toCity, setToCity] = useState("")
-  const [toState, setToState] = useState("")
-  const [toZip, setToZip] = useState("")
-  const [toCountry, setToCountry] = useState("US")
-  const [toPhone, setToPhone] = useState("")
-  const [toEmail, setToEmail] = useState("")
-
-  // Package Info
-  const [length, setLength] = useState("")
-  const [width, setWidth] = useState("")
-  const [height, setHeight] = useState("")
-  const [weight, setWeight] = useState("")
+  const [order, setOrder] = useState<Order | null>(null)
+  const [existingShipment, setExistingShipment] = useState<Shipment | null>(null)
+  const [sellerAddress, setSellerAddress] = useState<any>(null)
 
   useEffect(() => {
-    if (!orderId) return
+    if (!orderId) {
+      setError("No order ID provided")
+      setLoadingOrder(false)
+      return
+    }
 
     const loadOrderData = async () => {
       setLoadingOrder(true)
@@ -62,61 +68,41 @@ export default function CreateShippoLabelPage() {
       try {
         const supabase = createClient()
 
-        // Fetch order with buyer information
-        const { data: order, error: orderError } = await supabase
+        const { data: orderData, error: orderError } = await supabase
           .from("orders")
-          .select("*, order_items(*, products(*))")
+          .select(`
+            *,
+            order_items(
+              *,
+              products(id, title, image_url)
+            )
+          `)
           .eq("id", orderId)
           .single()
 
         if (orderError) throw orderError
+        if (!orderData) throw new Error("Order not found")
 
-        if (!order) {
-          throw new Error("Order not found")
+        setOrder(orderData as Order)
+
+        const { data: shipmentData } = await supabase.from("shipments").select("*").eq("order_id", orderId).single()
+
+        if (shipmentData) {
+          setExistingShipment(shipmentData as Shipment)
         }
 
-        if (order.customer_name) setToName(order.customer_name)
-        if (order.shipping_street) setToStreet1(order.shipping_street)
-        if (order.shipping_city) setToCity(order.shipping_city)
-        if (order.shipping_state) setToState(order.shipping_state)
-        if (order.shipping_zip) setToZip(order.shipping_zip)
-        if (order.shipping_country) setToCountry(order.shipping_country)
-        if (order.customer_email) setToEmail(order.customer_email)
+        if (orderData.order_items && orderData.order_items.length > 0) {
+          const sellerId = orderData.order_items[0].seller_id
 
-        if (order.order_items && order.order_items.length > 0) {
-          const sellerId = order.order_items[0].seller_id
-
-          const { data: seller, error: sellerError } = await supabase
-            .from("users")
-            .select("*")
-            .eq("id", sellerId)
-            .single()
-
-          if (sellerError) throw sellerError
+          const { data: seller } = await supabase.from("users").select("*").eq("id", sellerId).single()
 
           if (seller) {
-            if (seller.full_name) setFromName(seller.full_name)
-            if (seller.email) setFromEmail(seller.email)
-            if (seller.phone) setFromPhone(seller.phone)
-
-            // Parse seller_address if it exists
-            if (seller.seller_address) {
-              const address = seller.seller_address as any
-              if (address.street1) setFromStreet1(address.street1)
-              if (address.city) setFromCity(address.city)
-              if (address.state) setFromState(address.state)
-              if (address.zip) setFromZip(address.zip)
-              if (address.country) setFromCountry(address.country)
-            }
-          }
-
-          const firstProduct = order.order_items[0].products
-          if (firstProduct) {
-            // Set some default dimensions (you can adjust these)
-            setLength("12")
-            setWidth("10")
-            setHeight("8")
-            setWeight("2")
+            setSellerAddress({
+              name: seller.full_name || seller.store_name || "Seller",
+              email: seller.email,
+              phone: seller.phone,
+              ...seller.seller_address,
+            })
           }
         }
       } catch (err) {
@@ -130,45 +116,45 @@ export default function CreateShippoLabelPage() {
     loadOrderData()
   }, [orderId])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleCreateLabel = async () => {
+    if (!order || !sellerAddress) return
+
     setLoading(true)
     setError("")
-    setResult(null)
     setSuccessMessage("")
 
     try {
+      const totalItems = order.order_items.reduce((sum, item) => sum + item.quantity, 0)
+      const weight = Math.max(1, totalItems * 0.5) // 0.5 lb per item, minimum 1 lb
+
       const response = await fetch("/api/create-shipment", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to_address: {
-            name: toName,
-            street1: toStreet1,
-            city: toCity,
-            state: toState,
-            zip: toZip,
-            country: toCountry,
-            phone: toPhone,
-            email: toEmail,
+            name: order.customer_name,
+            street1: order.shipping_street,
+            city: order.shipping_city,
+            state: order.shipping_state,
+            zip: order.shipping_zip,
+            country: order.shipping_country || "US",
+            email: order.customer_email,
           },
           from_address: {
-            name: fromName,
-            street1: fromStreet1,
-            city: fromCity,
-            state: fromState,
-            zip: fromZip,
-            country: fromCountry,
-            phone: fromPhone,
-            email: fromEmail,
+            name: sellerAddress.name,
+            street1: sellerAddress.street1,
+            city: sellerAddress.city,
+            state: sellerAddress.state,
+            zip: sellerAddress.zip,
+            country: sellerAddress.country || "US",
+            phone: sellerAddress.phone,
+            email: sellerAddress.email,
           },
           parcel: {
-            length,
-            width,
-            height,
-            weight,
+            length: "12",
+            width: "10",
+            height: "8",
+            weight: weight.toString(),
             distance_unit: "in",
             mass_unit: "lb",
           },
@@ -181,66 +167,83 @@ export default function CreateShippoLabelPage() {
         throw new Error(data.error || "Error creando la etiqueta")
       }
 
-      setResult({
-        tracking_number: data.tracking_number,
-        tracking_url_provider: data.tracking_url_provider,
-        label_url: data.label_url,
-      })
+      const supabase = createClient()
 
-      if (orderId) {
-        try {
-          const supabase = createClient()
+      await supabase
+        .from("orders")
+        .update({
+          tracking_number: data.tracking_number,
+          shipping_carrier: data.carrier || "Shippo",
+          status: "shipped",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", orderId)
 
-          // Update orders table with tracking info
-          const { error: updateError } = await supabase
-            .from("orders")
-            .update({
-              tracking_number: data.tracking_number,
-              shipping_carrier: data.carrier || "Shippo",
-              status: "label_created",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", orderId)
+      const { data: shipmentData } = await supabase
+        .from("shipments")
+        .insert({
+          order_id: orderId,
+          tracking_number: data.tracking_number,
+          carrier: data.carrier || "Shippo",
+          status: "label_created",
+          label_url: data.label_url,
+          tracking_url: data.tracking_url_provider,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
 
-          if (updateError) {
-            console.error("[v0] Error updating order:", updateError)
-            throw updateError
-          }
-
-          // Also create a shipment record for more detailed tracking
-          const { error: shipmentError } = await supabase.from("shipments").insert({
-            order_id: orderId,
-            tracking_number: data.tracking_number,
-            carrier: data.carrier || "Shippo",
-            status: "label_created",
-            label_url: data.label_url,
-            tracking_url: data.tracking_url_provider,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-
-          if (shipmentError) {
-            console.error("[v0] Error creating shipment:", shipmentError)
-            // Don't throw here, order update was successful
-          }
-
-          setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido ✅")
-        } catch (dbError) {
-          console.error("[v0] Database error:", dbError)
-          setError("Error al guardar la etiqueta en la base de datos.")
-          // Don't return, still show the label
-        }
+      if (shipmentData) {
+        setExistingShipment(shipmentData as Shipment)
       }
+
+      setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido ✅")
 
       // Open label in new tab
       if (data.label_url) {
         window.open(data.label_url, "_blank")
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error creando la etiqueta, revisa los datos.")
+      console.error("[v0] Error creating label:", err)
+      setError(err instanceof Error ? err.message : "Error creando la etiqueta")
     } finally {
       setLoading(false)
     }
+  }
+
+  if (loadingOrder) {
+    return (
+      <div className="container mx-auto max-w-4xl py-8 px-4">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-3 text-lg">Cargando datos del pedido...</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && !order) {
+    return (
+      <div className="container mx-auto max-w-4xl py-8 px-4">
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button onClick={() => router.back()} className="mt-4">
+          Volver
+        </Button>
+      </div>
+    )
+  }
+
+  if (!order) {
+    return (
+      <div className="container mx-auto max-w-4xl py-8 px-4">
+        <Alert variant="destructive">
+          <AlertDescription>No se encontró el pedido</AlertDescription>
+        </Alert>
+      </div>
+    )
   }
 
   return (
@@ -248,237 +251,218 @@ export default function CreateShippoLabelPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <Package className="h-8 w-8" />
-          Create Shipping Label
+          Crear Etiqueta de Envío
         </h1>
-        <p className="text-muted-foreground mt-2">
-          Generate shipping labels with Shippo
-          {orderId && <span className="ml-2 text-sm">(Order ID: {orderId})</span>}
-        </p>
+        <p className="text-muted-foreground mt-2">Pedido #{order.id.slice(0, 8)}</p>
       </div>
 
-      {loadingOrder && (
-        <Alert className="mb-6">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <AlertDescription>Loading order data...</AlertDescription>
+      {existingShipment && (
+        <Card className="mb-6 border-green-500 bg-green-50 dark:bg-green-950">
+          <CardHeader>
+            <CardTitle className="text-green-700 dark:text-green-300 flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5" />
+              Etiqueta Ya Creada
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Número de Seguimiento:</p>
+              <p className="text-lg font-mono">{existingShipment.tracking_number}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Transportista:</p>
+              <p className="text-lg">{existingShipment.carrier}</p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                onClick={() => window.open(existingShipment.tracking_url, "_blank")}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Rastrear Envío
+              </Button>
+              <Button
+                onClick={() => window.open(existingShipment.label_url, "_blank")}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+              >
+                <Printer className="h-4 w-4" />
+                Reimprimir Etiqueta
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Box className="h-5 w-5" />
+            Artículos del Pedido
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {order.order_items.map((item) => (
+              <div key={item.id} className="flex items-center gap-4 pb-4 border-b last:border-0">
+                {item.products.image_url && (
+                  <img
+                    src={item.products.image_url || "/placeholder.svg"}
+                    alt={item.products.title}
+                    className="w-16 h-16 object-cover rounded"
+                  />
+                )}
+                <div className="flex-1">
+                  <p className="font-medium">{item.products.title}</p>
+                  <p className="text-sm text-muted-foreground">
+                    Cantidad: {item.quantity} × ${item.price_at_purchase.toFixed(2)}
+                  </p>
+                </div>
+                <p className="font-semibold">${(item.quantity * item.price_at_purchase).toFixed(2)}</p>
+              </div>
+            ))}
+            <div className="flex justify-between items-center pt-2 text-lg font-bold">
+              <span>Total:</span>
+              <span>${order.total_amount.toFixed(2)}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-6 mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <User className="h-5 w-5" />
+              Remitente (Vendedor)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {sellerAddress ? (
+              <>
+                <div>
+                  <p className="text-sm text-muted-foreground">Nombre:</p>
+                  <p className="font-medium">{sellerAddress.name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Dirección:</p>
+                  <p className="font-medium">{sellerAddress.street1}</p>
+                  <p className="font-medium">
+                    {sellerAddress.city}, {sellerAddress.state} {sellerAddress.zip}
+                  </p>
+                  <p className="font-medium">{sellerAddress.country || "US"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Contacto:</p>
+                  <p className="text-sm">{sellerAddress.email}</p>
+                  {sellerAddress.phone && <p className="text-sm">{sellerAddress.phone}</p>}
+                </div>
+              </>
+            ) : (
+              <p className="text-muted-foreground">No se encontró dirección del vendedor</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <MapPin className="h-5 w-5" />
+              Destinatario (Comprador)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div>
+              <p className="text-sm text-muted-foreground">Nombre:</p>
+              <p className="font-medium">{order.customer_name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Dirección:</p>
+              <p className="font-medium">{order.shipping_street}</p>
+              <p className="font-medium">
+                {order.shipping_city}, {order.shipping_state} {order.shipping_zip}
+              </p>
+              <p className="font-medium">{order.shipping_country || "US"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Email:</p>
+              <p className="text-sm">{order.customer_email}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Package className="h-5 w-5" />
+            Información del Paquete
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Largo:</p>
+              <p className="font-medium">12 in</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Ancho:</p>
+              <p className="font-medium">10 in</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Alto:</p>
+              <p className="font-medium">8 in</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Peso:</p>
+              <p className="font-medium">
+                {Math.max(1, order.order_items.reduce((sum, item) => sum + item.quantity, 0) * 0.5).toFixed(1)} lb
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            * Dimensiones calculadas automáticamente basadas en los artículos del pedido
+          </p>
+        </CardContent>
+      </Card>
+
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* From Address */}
-        <Card>
-          <CardHeader>
-            <CardTitle>From Address (Seller)</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="from-name">Name</Label>
-              <Input id="from-name" value={fromName} onChange={(e) => setFromName(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="from-email">Email</Label>
-              <Input
-                id="from-email"
-                type="email"
-                value={fromEmail}
-                onChange={(e) => setFromEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="from-street1">Street Address</Label>
-              <Input id="from-street1" value={fromStreet1} onChange={(e) => setFromStreet1(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="from-city">City</Label>
-              <Input id="from-city" value={fromCity} onChange={(e) => setFromCity(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="from-state">State</Label>
-              <Input
-                id="from-state"
-                value={fromState}
-                onChange={(e) => setFromState(e.target.value)}
-                placeholder="CA"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="from-zip">ZIP Code</Label>
-              <Input id="from-zip" value={fromZip} onChange={(e) => setFromZip(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="from-phone">Phone</Label>
-              <Input
-                id="from-phone"
-                type="tel"
-                value={fromPhone}
-                onChange={(e) => setFromPhone(e.target.value)}
-                required
-              />
-            </div>
-          </CardContent>
-        </Card>
+      {successMessage && (
+        <Alert className="mb-6 border-green-500 bg-green-50 dark:bg-green-950">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-700 dark:text-green-300">{successMessage}</AlertDescription>
+        </Alert>
+      )}
 
-        {/* To Address */}
-        <Card>
-          <CardHeader>
-            <CardTitle>To Address (Buyer)</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="to-name">Name</Label>
-              <Input id="to-name" value={toName} onChange={(e) => setToName(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to-email">Email</Label>
-              <Input id="to-email" type="email" value={toEmail} onChange={(e) => setToEmail(e.target.value)} required />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="to-street1">Street Address</Label>
-              <Input id="to-street1" value={toStreet1} onChange={(e) => setToStreet1(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to-city">City</Label>
-              <Input id="to-city" value={toCity} onChange={(e) => setToCity(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to-state">State</Label>
-              <Input
-                id="to-state"
-                value={toState}
-                onChange={(e) => setToState(e.target.value)}
-                placeholder="NY"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to-zip">ZIP Code</Label>
-              <Input id="to-zip" value={toZip} onChange={(e) => setToZip(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="to-phone">Phone</Label>
-              <Input id="to-phone" type="tel" value={toPhone} onChange={(e) => setToPhone(e.target.value)} required />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Package Info */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Package Information</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="length">Length (in)</Label>
-              <Input
-                id="length"
-                type="number"
-                step="0.01"
-                value={length}
-                onChange={(e) => setLength(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="width">Width (in)</Label>
-              <Input
-                id="width"
-                type="number"
-                step="0.01"
-                value={width}
-                onChange={(e) => setWidth(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="height">Height (in)</Label>
-              <Input
-                id="height"
-                type="number"
-                step="0.01"
-                value={height}
-                onChange={(e) => setHeight(e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="weight">Weight (lb)</Label>
-              <Input
-                id="weight"
-                type="number"
-                step="0.01"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                required
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Error Message */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {successMessage && (
-          <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-700 dark:text-green-300">{successMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* Success Result */}
-        {result && (
-          <Card className="border-green-500 bg-green-50 dark:bg-green-950">
-            <CardHeader>
-              <CardTitle className="text-green-700 dark:text-green-300">Label Created Successfully!</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-sm font-medium">Tracking Number:</p>
-                <p className="text-lg font-mono">{result.tracking_number}</p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => window.open(result.tracking_url_provider, "_blank")}
-                  className="flex items-center gap-2"
-                >
-                  Track Package
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => window.open(result.label_url, "_blank")}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                >
-                  Download Label
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Submit Button */}
-        <Button
-          type="submit"
-          disabled={loading || loadingOrder}
-          className="w-full bg-green-600 hover:bg-green-700 text-white h-12 text-lg"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Creating Label...
-            </>
-          ) : (
-            "Create Label"
-          )}
+      <div className="flex gap-4">
+        <Button onClick={() => router.back()} variant="outline" className="flex-1">
+          Volver
         </Button>
-      </form>
+        {!existingShipment && (
+          <Button
+            onClick={handleCreateLabel}
+            disabled={loading || !sellerAddress}
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white h-12 text-lg"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Creando Etiqueta...
+              </>
+            ) : (
+              <>
+                <Package className="mr-2 h-5 w-5" />
+                Crear Etiqueta de Envío
+              </>
+            )}
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
