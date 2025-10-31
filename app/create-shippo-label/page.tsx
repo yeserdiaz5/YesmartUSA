@@ -27,6 +27,7 @@ interface Order {
   shipping_state: string
   shipping_zip: string
   shipping_country: string
+  shipping_phone: string
   total_amount: number
   tracking_number?: string
   shipping_carrier?: string
@@ -83,7 +84,35 @@ export default function CreateShippoLabelPage() {
         if (orderError) throw orderError
         if (!orderData) throw new Error("Order not found")
 
-        setOrder(orderData as Order)
+        console.log("[v0] Order data loaded:", orderData)
+
+        let shippingAddress = orderData.shipping_address
+        if (typeof shippingAddress === "string") {
+          try {
+            shippingAddress = JSON.parse(shippingAddress)
+          } catch (e) {
+            console.error("[v0] Error parsing shipping_address:", e)
+            shippingAddress = null
+          }
+        }
+
+        console.log("[v0] Parsed shipping_address:", shippingAddress)
+
+        const processedOrder = {
+          ...orderData,
+          customer_name: shippingAddress?.full_name || orderData.customer_name || "",
+          customer_email: orderData.buyer_email || orderData.customer_email || "",
+          shipping_street: shippingAddress?.address_line1 || orderData.shipping_street || "",
+          shipping_city: shippingAddress?.city || orderData.shipping_city || "",
+          shipping_state: shippingAddress?.state || orderData.shipping_state || "",
+          shipping_zip: shippingAddress?.postal_code || orderData.shipping_zip || "",
+          shipping_country: shippingAddress?.country || orderData.shipping_country || "US",
+          shipping_phone: shippingAddress?.phone || "",
+        }
+
+        console.log("[v0] Processed order with shipping data:", processedOrder)
+
+        setOrder(processedOrder as Order)
 
         const { data: shipmentData } = await supabase.from("shipments").select("*").eq("order_id", orderId).single()
 
@@ -138,6 +167,7 @@ export default function CreateShippoLabelPage() {
             state: order.shipping_state,
             zip: order.shipping_zip,
             country: order.shipping_country || "US",
+            phone: order.shipping_phone,
             email: order.customer_email,
           },
           from_address: {
@@ -388,6 +418,12 @@ export default function CreateShippoLabelPage() {
               <p className="text-sm text-muted-foreground">Email:</p>
               <p className="text-sm">{order.customer_email}</p>
             </div>
+            {order.shipping_phone && (
+              <div>
+                <p className="text-sm text-muted-foreground">Teléfono:</p>
+                <p className="text-sm">{order.shipping_phone}</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
