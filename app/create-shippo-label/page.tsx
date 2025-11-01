@@ -148,7 +148,11 @@ export default function CreateShippoLabelPage() {
 
         setOrder(processedOrder as Order)
 
-        const { data: shipmentData } = await supabase.from("shipments").select("*").eq("order_id", orderId).single()
+        const { data: shipmentData } = await supabase
+          .from("shipments")
+          .select("*")
+          .eq("order_id", orderId)
+          .maybeSingle()
 
         if (shipmentData) {
           setExistingShipment(shipmentData as Shipment)
