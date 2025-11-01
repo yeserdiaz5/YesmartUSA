@@ -80,6 +80,7 @@ export async function POST(request: NextRequest) {
     const blob = await put(filename, pdfBlob, {
       access: "public",
       contentType: "application/pdf",
+      addRandomSuffix: true,
     })
     console.log("[v0] PDF uploaded to Vercel Blob:", blob.url)
 
