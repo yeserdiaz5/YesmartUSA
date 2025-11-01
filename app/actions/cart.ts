@@ -68,13 +68,12 @@ export async function addToCart(productId: string, quantity = 1) {
     return { success: false, error: "Debes iniciar sesión para agregar productos al carrito" }
   }
 
-  // Check if item already exists in cart
   const { data: existingItem } = await supabase
     .from("cart_items")
     .select("*")
     .eq("user_id", user.id)
     .eq("product_id", productId)
-    .single()
+    .maybeSingle()
 
   if (existingItem) {
     // Update quantity
