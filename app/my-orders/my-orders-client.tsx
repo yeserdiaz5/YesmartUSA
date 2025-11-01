@@ -21,7 +21,6 @@ import { Package, Truck, ExternalLink, Printer, XCircle, Loader2 } from "lucide-
 import { getOrderShipments, type Shipment } from "../actions/shipments"
 import { cancelOrder } from "../actions/orders"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 
 interface MyOrdersClientProps {
   user: User | null
@@ -48,8 +47,10 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
 
       for (const order of orders) {
         const result = await getOrderShipments(order.id)
+        console.log("[v0] Shipments for order", order.id, ":", result)
         if (result.success && result.data) {
           shipmentsMap[order.id] = result.data
+          console.log("[v0] First shipment label_url:", result.data[0]?.label_url)
         }
       }
 
@@ -116,7 +117,15 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     const hasLabel = order.status === "shipped" || (hasShipment && firstShipment?.tracking_number)
     const canCancel = order.status === "paid" || order.status === "pending"
     const labelUrl = firstShipment?.label_url || order.label_url
-    const canCreateShipment = order.status === "paid" && !hasShipment
+
+    console.log("[v0] OrderCard for order", order.id, ":", {
+      hasShipment,
+      hasLabel,
+      labelUrl,
+      firstShipment_label_url: firstShipment?.label_url,
+      order_label_url: order.label_url,
+      order_status: order.status,
+    })
 
     return (
       <Card key={order.id}>
@@ -163,7 +172,7 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-2 mb-3">
                 <Truck className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-blue-900">Pedido enviado 📦</h3>
+                <h3 className="font-semibold text-blue-900">Tu pedido ha sido enviado 📦</h3>
               </div>
 
               <div className="space-y-2 mb-3">
@@ -196,7 +205,7 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                     if (labelUrl) {
                       window.open(labelUrl, "_blank")
                     } else {
-                      alert("La etiqueta de envío no está disponible.")
+                      alert("La etiqueta de envío no está disponible. Por favor, contacta al vendedor.")
                     }
                   }}
                   variant="outline"
@@ -208,17 +217,22 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                 </Button>
               </div>
             </div>
-          ) : (
+          ) : order.status === "paid" ? (
             <div className="space-y-3">
-              {canCreateShipment && (
-                <Link href={`/create-shippo-label?orderId=${order.id}`}>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                    <Truck className="w-4 h-4 mr-2" />
-                    Comprar Envío
-                  </Button>
-                </Link>
-              )}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-orange-600" />
+                  <p className="text-orange-900 font-medium">Tu pedido está siendo preparado para envío 🚚</p>
+                </div>
+              </div>
               <div className="flex gap-2">
+                <Button
+                  onClick={() => router.push(`/create-shippo-label?order_id=${order.id}`)}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Truck className="w-4 h-4 mr-2" />
+                  Comprar Envío
+                </Button>
                 {canCancel && (
                   <Button
                     onClick={() => setCancelDialog({ open: true, orderId: order.id })}
@@ -231,7 +245,26 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                 )}
               </div>
             </div>
-          )}
+          ) : order.status === "pending" ? (
+            <div className="space-y-3">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-yellow-600" />
+                  <p className="text-yellow-900 font-medium">Esperando confirmación de pago</p>
+                </div>
+              </div>
+              {canCancel && (
+                <Button
+                  onClick={() => setCancelDialog({ open: true, orderId: order.id })}
+                  variant="outline"
+                  className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Cancelar Pedido
+                </Button>
+              )}
+            </div>
+          ) : null}
 
           {order.status === "cancelled" && order.cancellation_reason && (
             <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -267,16 +300,16 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
         </div>
 
         {!Array.isArray(orders) || orders.length === 0 ? (
-          <EmptyState message="No tienes pedidos todavía" />
+          <EmptyState message="No tienes pedidos todavía. Tus pedidos aparecerán aquí una vez que realices una compra" />
         ) : (
           <Tabs defaultValue="pending" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="pending" className="flex items-center gap-2">
                 <Package className="w-4 h-4" />
-                Pendientes ({pendingOrders.length})
+                Pendientes a Envío ({pendingOrders.length})
               </TabsTrigger>
               <TabsTrigger value="shipped" className="flex items-center gap-2">
-                <Package className="w-4 h-4" />
+                <Truck className="w-4 h-4" />
                 Enviados ({shippedOrders.length})
               </TabsTrigger>
               <TabsTrigger value="cancelled" className="flex items-center gap-2">
@@ -287,7 +320,7 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
 
             <TabsContent value="pending" className="space-y-4">
               {pendingOrders.length === 0 ? (
-                <EmptyState message="No tienes pedidos pendientes" />
+                <EmptyState message="No tienes pedidos pendientes de envío" />
               ) : (
                 pendingOrders.map((order) => <OrderCard key={order.id} order={order} />)
               )}
