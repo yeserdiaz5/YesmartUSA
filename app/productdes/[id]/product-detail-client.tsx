@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Star, ShoppingCart, Plus, Minus, ArrowLeft } from "lucide-react"
+import { Star, ShoppingCart, Plus, Minus, ArrowLeft, Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import SiteHeader from "@/components/site-header"
@@ -23,6 +23,23 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
   const [quantity, setQuantity] = useState(1)
   const [isAdding, setIsAdding] = useState(false)
   const [selectedImage, setSelectedImage] = useState(product.image_url || "/placeholder.svg")
+  const [shippedOrders, setShippedOrders] = useState<any[]>([])
+  const [loadingLabel, setLoadingLabel] = useState(false)
+
+  useEffect(() => {
+    async function fetchShippedOrders() {
+      try {
+        const response = await fetch(`/api/get-product-shipped-orders?productId=${product.id}`)
+        const data = await response.json()
+        if (data.success && data.orders) {
+          setShippedOrders(data.orders)
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching shipped orders:", error)
+      }
+    }
+    fetchShippedOrders()
+  }, [product.id])
 
   const trustScore = 75 + Math.floor(Math.random() * 20)
   const rating = 4 + Math.random()
@@ -110,6 +127,46 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
     }
   }
 
+  const handlePrintLabel = async (trackingNumber: string, carrier: string) => {
+    setLoadingLabel(true)
+    try {
+      const response = await fetch(`/api/get-shippo-label`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          tracking_number: trackingNumber,
+          carrier: carrier || "usps",
+        }),
+      })
+      const data = await response.json()
+
+      if (data.success && data.label_url) {
+        window.open(data.label_url, "_blank")
+        toast({
+          title: "Etiqueta encontrada",
+          description: "Abriendo PDF de la etiqueta...",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "No se pudo obtener la etiqueta",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error getting label:", error)
+      toast({
+        title: "Error",
+        description: "Error al obtener la etiqueta",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingLabel(false)
+    }
+  }
+
   const images =
     product.images && product.images.length > 0 ? product.images : [product.image_url || "/placeholder.svg"]
 
@@ -184,6 +241,50 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
               <div className="mb-6">
                 <p className="text-gray-700 leading-relaxed">{product.description}</p>
               </div>
+
+              {shippedOrders.length > 0 && (
+                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-3">Órdenes Enviadas</h3>
+                  <p className="text-sm text-blue-700 mb-4">
+                    Este producto fue enviado en {shippedOrders.length} orden(es). Puedes reimprimir las etiquetas de
+                    envío.
+                  </p>
+                  <div className="space-y-3">
+                    {shippedOrders.map((order) => (
+                      <div key={order.id} className="bg-white p-4 rounded-lg border border-blue-200">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <p className="font-semibold text-gray-900">Pedido #{order.id.slice(0, 8)}</p>
+                            <p className="text-sm text-gray-600">
+                              {new Date(order.created_at).toLocaleDateString("es-ES", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            </p>
+                          </div>
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            Enviado
+                          </Badge>
+                        </div>
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-600">Número de seguimiento:</p>
+                          <p className="font-mono text-sm font-medium text-gray-900">{order.tracking_number}</p>
+                        </div>
+                        <Button
+                          onClick={() => handlePrintLabel(order.tracking_number, order.carrier || "usps")}
+                          disabled={loadingLabel}
+                          variant="outline"
+                          className="w-full border-blue-300 text-blue-700 hover:bg-blue-100"
+                        >
+                          <Printer className="w-4 h-4 mr-2" />
+                          {loadingLabel ? "Obteniendo etiqueta..." : "Reimprimir Etiqueta"}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mb-6">
                 <p className="text-sm font-medium mb-2">Cantidad:</p>

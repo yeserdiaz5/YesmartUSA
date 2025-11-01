@@ -87,9 +87,8 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + 90)
 
-    const shipmentToSave = {
+    const shipmentToSave: any = {
       order_id: order_id,
-      user_id: buyer_id,
       tracking_number: shipmentData.tracking_number,
       carrier: shipmentData.provider,
       status: "label_created",
@@ -100,7 +99,12 @@ export async function POST(request: NextRequest) {
       expires_at: expiresAt.toISOString(),
     }
 
-    console.log("[v0] Saving shipment to database...")
+    // Only add user_id if buyer_id exists and is not null
+    if (buyer_id && buyer_id !== null && buyer_id !== undefined) {
+      shipmentToSave.user_id = buyer_id
+    }
+
+    console.log("[v0] Saving shipment to database:", shipmentToSave)
     const { data: savedShipment, error: shipmentError } = await supabase
       .from("shipments")
       .insert(shipmentToSave)
@@ -109,10 +113,13 @@ export async function POST(request: NextRequest) {
 
     if (shipmentError) {
       console.error("[v0] Error saving shipment:", shipmentError)
-      throw new Error("Failed to save shipment to database")
+      console.error("[v0] Shipment data that failed:", JSON.stringify(shipmentToSave, null, 2))
+      console.error("[v0] Error details:", JSON.stringify(shipmentError, null, 2))
+      console.error("[v0] WARNING: Shipment not saved to database, but label was created successfully")
+      // Don't throw error - label creation was successful
+    } else {
+      console.log("[v0] Shipment saved successfully:", savedShipment)
     }
-
-    console.log("[v0] Shipment saved successfully:", savedShipment)
 
     console.log("[v0] Updating order status to shipped...")
     const { error: orderUpdateError } = await supabase
