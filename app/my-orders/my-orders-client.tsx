@@ -117,21 +117,7 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     const hasLabel = order.status === "shipped" || (hasShipment && firstShipment?.tracking_number)
     const canCancel = order.status === "paid" || order.status === "pending"
 
-    const labelUrl = firstShipment?.label_storage_url || firstShipment?.label_url || order.label_url
-    const isLabelExpired = firstShipment?.expires_at && new Date(firstShipment.expires_at) < new Date()
-
-    const handleReprintLabel = () => {
-      if (isLabelExpired) {
-        alert("Esta etiqueta expiró, genera una nueva etiqueta")
-        return
-      }
-
-      if (labelUrl) {
-        window.open(labelUrl, "_blank")
-      } else {
-        alert("La etiqueta de envío no está disponible. Por favor, contacta al vendedor.")
-      }
-    }
+    const labelUrl = firstShipment?.label_url || firstShipment?.label_storage_url || order.label_url
 
     return (
       <Card key={order.id}>
@@ -206,22 +192,21 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                     Rastrear envío
                   </Button>
                 )}
-                <Button
-                  onClick={handleReprintLabel}
-                  variant={isLabelExpired ? "destructive" : "default"}
-                  disabled={!labelUrl}
-                  className="flex-1"
-                >
-                  <Printer className="w-4 h-4 mr-2" />
-                  {isLabelExpired ? "Etiqueta Expirada" : "Reimprimir Etiqueta"}
-                </Button>
+                {labelUrl ? (
+                  <Button
+                    onClick={() => window.open(labelUrl, "_blank")}
+                    variant="outline"
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900"
+                  >
+                    <Printer className="w-4 h-4 mr-2" />
+                    Reimprimir Etiqueta
+                  </Button>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-sm text-gray-500 bg-gray-50 rounded-md px-4 py-2 border border-gray-200">
+                    Etiqueta no disponible
+                  </div>
+                )}
               </div>
-
-              {firstShipment?.expires_at && !isLabelExpired && (
-                <p className="text-xs text-gray-600 mt-2 text-center">
-                  La etiqueta expira el {new Date(firstShipment.expires_at).toLocaleDateString("es-ES")}
-                </p>
-              )}
             </div>
           ) : order.status === "paid" ? (
             <div className="space-y-3">
