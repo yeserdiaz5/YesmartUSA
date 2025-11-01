@@ -1,14 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { put } from "@vercel/blob"
-import { sendOrderEmail, sellerLabelCreatedTemplate } from "@/lib/email-templates"
+import { sendOrderEmail, customerShippedTemplate, sellerLabelCreatedTemplate } from "@/lib/email-templates"
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { rate_id, to_address, from_address, parcel, order_id, seller_email } = body
+    const { rate_id, to_address, from_address, parcel, order_id, seller_email, buyer_id } = body
 
     console.log("[v0] Creating shipment with data:", {
       rate_id,
@@ -83,30 +83,128 @@ export async function POST(request: NextRequest) {
     })
     console.log("[v0] PDF uploaded to Vercel Blob:", blob.url)
 
-    const responseData = {
-      ...shipmentData,
+    const expiresAt = new Date()
+    expiresAt.setDate(expiresAt.getDate() + 90)
+
+    const shipmentToSave = {
+      order_id: order_id,
+      user_id: buyer_id,
+      tracking_number: shipmentData.tracking_number,
+      carrier: shipmentData.provider,
+      status: "label_created",
+      label_url: shipmentData.label_url,
       label_storage_url: blob.url,
+      tracking_url: shipmentData.tracking_url_provider,
       storage_path: filename,
+      expires_at: expiresAt.toISOString(),
     }
 
-    if (shipmentData.status === "SUCCESS" && seller_email) {
+    console.log("[v0] Saving shipment to database...")
+    const { data: savedShipment, error: shipmentError } = await supabase
+      .from("shipments")
+      .insert(shipmentToSave)
+      .select()
+      .single()
+
+    if (shipmentError) {
+      console.error("[v0] Error saving shipment:", shipmentError)
+      throw new Error("Failed to save shipment to database")
+    }
+
+    console.log("[v0] Shipment saved successfully:", savedShipment)
+
+    console.log("[v0] Updating order status to shipped...")
+    const { error: orderUpdateError } = await supabase
+      .from("orders")
+      .update({
+        tracking_number: shipmentData.tracking_number,
+        shipping_carrier: shipmentData.provider,
+        status: "shipped",
+      })
+      .eq("id", order_id)
+
+    if (orderUpdateError) {
+      console.error("[v0] Error updating order:", orderUpdateError)
+    }
+
+    if (to_address.email) {
       try {
-        const emailData = {
-          orderNumber: order_id,
+        const customerEmailData = {
+          customerName: to_address.name,
+          orderNumber: order_id.slice(0, 8),
           trackingNumber: shipmentData.tracking_number,
           trackingUrl: shipmentData.tracking_url_provider,
           carrier: shipmentData.provider,
-          labelUrl: blob.url, // Use the Vercel Blob URL instead of Shippo URL
+          labelUrl: blob.url,
+        }
+
+        console.log("[v0] Sending shipped notification to customer:", to_address.email)
+        await sendOrderEmail(
+          to_address.email,
+          "Your YesMart USA order has been shipped 🚚",
+          customerShippedTemplate(customerEmailData),
+        )
+      } catch (emailError) {
+        console.error("[v0] Error sending customer email (non-fatal):", emailError)
+      }
+    }
+
+    if (seller_email) {
+      try {
+        const sellerEmailData = {
+          orderNumber: order_id.slice(0, 8),
+          trackingNumber: shipmentData.tracking_number,
+          trackingUrl: shipmentData.tracking_url_provider,
+          carrier: shipmentData.provider,
+          labelUrl: blob.url,
         }
 
         console.log("[v0] Sending label created email to seller:", seller_email)
-        await sendOrderEmail(seller_email, "Etiqueta creada", sellerLabelCreatedTemplate(emailData))
+        await sendOrderEmail(seller_email, "Etiqueta creada", sellerLabelCreatedTemplate(sellerEmailData))
       } catch (emailError) {
         console.error("[v0] Error sending seller email (non-fatal):", emailError)
       }
     }
 
-    console.log("[v0] Returning to frontend with storage URL:", blob.url)
+    try {
+      const supportEmailData = {
+        orderNumber: order_id.slice(0, 8),
+        trackingNumber: shipmentData.tracking_number,
+        trackingUrl: shipmentData.tracking_url_provider,
+        carrier: shipmentData.provider,
+        labelUrl: blob.url,
+        customerName: to_address.name,
+        customerEmail: to_address.email,
+      }
+
+      console.log("[v0] Sending tracking details to support@yesmartusa.com")
+      await sendOrderEmail(
+        "support@yesmartusa.com",
+        `Order #${order_id.slice(0, 8)} Shipped`,
+        `
+        <h2>Order Shipped Notification</h2>
+        <p><strong>Order:</strong> #${order_id.slice(0, 8)}</p>
+        <p><strong>Customer:</strong> ${to_address.name} (${to_address.email})</p>
+        <p><strong>Carrier:</strong> ${shipmentData.provider}</p>
+        <p><strong>Tracking Number:</strong> ${shipmentData.tracking_number}</p>
+        <p><strong>Tracking URL:</strong> <a href="${shipmentData.tracking_url_provider}">${shipmentData.tracking_url_provider}</a></p>
+        <p><strong>Label URL:</strong> <a href="${blob.url}">Download Label</a></p>
+      `,
+      )
+    } catch (emailError) {
+      console.error("[v0] Error sending support email (non-fatal):", emailError)
+    }
+
+    const responseData = {
+      tracking_number: shipmentData.tracking_number,
+      tracking_url_provider: shipmentData.tracking_url_provider,
+      label_url: blob.url, // Return Vercel Blob URL for permanent access
+      carrier: shipmentData.provider,
+      label_storage_url: blob.url,
+      storage_path: filename,
+    }
+
+    console.log("[v0] Returning complete response:", responseData)
 
     return NextResponse.json({
       success: true,

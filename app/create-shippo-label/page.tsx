@@ -35,6 +35,7 @@ interface Order {
   tracking_number?: string
   shipping_carrier?: string
   order_items: OrderItem[]
+  buyer_id?: string
 }
 
 interface Shipment {
@@ -45,6 +46,7 @@ interface Shipment {
   status: string
   storage_path?: string
   expires_at?: string
+  user_id?: string
 }
 
 interface ShippingRate {
@@ -276,6 +278,7 @@ export default function CreateShippoLabelPage() {
         body: JSON.stringify({
           rate_id: selectedRate.object_id,
           order_id: orderId,
+          buyer_id: order.buyer_id, // Pass buyer_id for shipment record
           to_address: {
             name: order.customer_name,
             street1: order.shipping_street,
@@ -315,54 +318,18 @@ export default function CreateShippoLabelPage() {
       }
 
       console.log("[v0] Label created successfully:", data)
-      const labelUrl = data.data.label_storage_url || data.data.label_url
-      console.log("[v0] Label URL to save:", labelUrl)
 
-      const supabase = createClient()
+      setSuccessMessage("Etiqueta creada exitosamente. Se han enviado notificaciones por email.")
 
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 90)
-
-      const shipmentToSave = {
-        order_id: orderId,
-        tracking_number: data.data.tracking_number,
-        carrier: data.data.provider || selectedRate.provider,
-        status: "label_created",
-        label_url: data.data.label_url,
-        label_storage_url: data.data.label_storage_url, // Save Vercel Blob URL
-        tracking_url: data.data.tracking_url_provider,
-        storage_path: data.data.storage_path,
-        expires_at: expiresAt.toISOString(), // Save expiration date (90 days)
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      console.log("[v0] Saving shipment to database:", shipmentToSave)
-
-      const { data: shipmentData, error: shipmentError } = await supabase
-        .from("shipments")
-        .insert(shipmentToSave)
-        .select()
-        .single()
-
-      if (shipmentError) {
-        console.error("[v0] Error saving shipment to database:", shipmentError)
-      } else {
-        console.log("[v0] Shipment saved successfully:", shipmentData)
-        console.log("[v0] Saved label_storage_url:", shipmentData.label_storage_url)
-      }
-
-      if (shipmentData) {
-        setExistingShipment(shipmentData as Shipment)
-      }
-
-      setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido")
-
+      const labelUrl = data.data.label_url
       if (labelUrl) {
         console.log("[v0] Opening label PDF:", labelUrl)
         window.open(labelUrl, "_blank")
-      } else {
-        console.error("[v0] No label_url available to open!")
       }
+
+      setTimeout(() => {
+        window.location.reload()
+      }, 2000)
     } catch (err) {
       console.error("[v0] Error creating label:", err)
       setError(err instanceof Error ? err.message : "Error creando la etiqueta")
