@@ -24,22 +24,28 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
   const [isAdding, setIsAdding] = useState(false)
   const [selectedImage, setSelectedImage] = useState(product.image_url || "/placeholder.svg")
   const [shippedOrders, setShippedOrders] = useState<any[]>([])
-  const [loadingLabel, setLoadingLabel] = useState(false)
+  const [loadingLabel, setLoadingLabel] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchShippedOrders() {
+      console.log("[v0] Fetching ALL shipped orders")
       try {
-        const response = await fetch(`/api/get-product-shipped-orders?productId=${product.id}`)
+        const response = await fetch(`/api/get-product-shipped-orders`)
+        console.log("[v0] API response status:", response.status)
         const data = await response.json()
+        console.log("[v0] API response data:", data)
         if (data.success && data.orders) {
+          console.log("[v0] Setting shipped orders:", data.orders.length, "orders found")
           setShippedOrders(data.orders)
+        } else {
+          console.log("[v0] No orders found or API error:", data.error)
         }
       } catch (error) {
         console.error("[v0] Error fetching shipped orders:", error)
       }
     }
     fetchShippedOrders()
-  }, [product.id])
+  }, [])
 
   const trustScore = 75 + Math.floor(Math.random() * 20)
   const rating = 4 + Math.random()
@@ -127,8 +133,8 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
     }
   }
 
-  const handlePrintLabel = async (trackingNumber: string, carrier: string) => {
-    setLoadingLabel(true)
+  const handlePrintLabel = async (trackingNumber: string, carrier: string, orderId: string) => {
+    setLoadingLabel(trackingNumber)
     try {
       const response = await fetch(`/api/get-shippo-label`, {
         method: "POST",
@@ -138,15 +144,17 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
         body: JSON.stringify({
           tracking_number: trackingNumber,
           carrier: carrier || "usps",
+          order_id: orderId,
         }),
       })
       const data = await response.json()
 
       if (data.success && data.label_url) {
+        console.log("[v0] Label retrieved from:", data.source)
         window.open(data.label_url, "_blank")
         toast({
           title: "Etiqueta encontrada",
-          description: "Abriendo PDF de la etiqueta...",
+          description: data.source === "blob" ? "Cargada desde almacenamiento" : "Descargada de Shippo",
         })
       } else {
         toast({
@@ -163,12 +171,14 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
         variant: "destructive",
       })
     } finally {
-      setLoadingLabel(false)
+      setLoadingLabel(null)
     }
   }
 
   const images =
     product.images && product.images.length > 0 ? product.images : [product.image_url || "/placeholder.svg"]
+
+  console.log("[v0] Rendering product detail, shipped orders count:", shippedOrders.length)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -244,10 +254,9 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
 
               {shippedOrders.length > 0 && (
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="font-semibold text-blue-900 mb-3">Órdenes Enviadas</h3>
+                  <h3 className="font-semibold text-blue-900 mb-3">Todas las Órdenes Enviadas</h3>
                   <p className="text-sm text-blue-700 mb-4">
-                    Este producto fue enviado en {shippedOrders.length} orden(es). Puedes reimprimir las etiquetas de
-                    envío.
+                    Mostrando {shippedOrders.length} orden(es) enviada(s). Puedes reimprimir las etiquetas de envío.
                   </p>
                   <div className="space-y-3">
                     {shippedOrders.map((order) => (
@@ -272,13 +281,13 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
                           <p className="font-mono text-sm font-medium text-gray-900">{order.tracking_number}</p>
                         </div>
                         <Button
-                          onClick={() => handlePrintLabel(order.tracking_number, order.carrier || "usps")}
-                          disabled={loadingLabel}
+                          onClick={() => handlePrintLabel(order.tracking_number, order.carrier || "usps", order.id)}
+                          disabled={loadingLabel === order.tracking_number}
                           variant="outline"
                           className="w-full border-blue-300 text-blue-700 hover:bg-blue-100"
                         >
                           <Printer className="w-4 h-4 mr-2" />
-                          {loadingLabel ? "Obteniendo etiqueta..." : "Reimprimir Etiqueta"}
+                          {loadingLabel === order.tracking_number ? "Obteniendo etiqueta..." : "Reimprimir Etiqueta"}
                         </Button>
                       </div>
                     ))}

@@ -3,16 +3,10 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const productId = searchParams.get("productId")
-
-    if (!productId) {
-      return NextResponse.json({ success: false, error: "Product ID is required" }, { status: 400 })
-    }
+    console.log("[v0] get-product-shipped-orders called - fetching ALL shipped orders")
 
     const supabase = await createClient()
 
-    // Query orders that contain this product and are shipped with tracking number
     const { data: orders, error } = await supabase
       .from("orders")
       .select(
@@ -21,18 +15,23 @@ export async function GET(request: NextRequest) {
         tracking_number,
         carrier,
         status,
-        order_items!inner(product_id)
+        created_at,
+        shipments(label_storage_url, label_url)
       `,
       )
-      .eq("order_items.product_id", productId)
       .eq("status", "shipped")
       .not("tracking_number", "is", null)
+      .order("created_at", { ascending: false })
+
+    console.log("[v0] Query result - orders:", orders)
+    console.log("[v0] Query error:", error)
 
     if (error) {
       console.error("[v0] Error fetching shipped orders:", error)
       return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 
+    console.log("[v0] Returning", orders?.length || 0, "shipped orders")
     return NextResponse.json({ success: true, orders: orders || [] })
   } catch (error: any) {
     console.error("[v0] Error in get-product-shipped-orders:", error)
