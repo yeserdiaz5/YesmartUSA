@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Star, ShoppingCart, Plus, Minus, ArrowLeft, Printer } from "lucide-react"
+import { Star, ShoppingCart, Plus, Minus, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import SiteHeader from "@/components/site-header"
@@ -23,29 +23,6 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
   const [quantity, setQuantity] = useState(1)
   const [isAdding, setIsAdding] = useState(false)
   const [selectedImage, setSelectedImage] = useState(product.image_url || "/placeholder.svg")
-  const [shippedOrders, setShippedOrders] = useState<any[]>([])
-  const [loadingLabel, setLoadingLabel] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function fetchShippedOrders() {
-      console.log("[v0] Fetching ALL shipped orders")
-      try {
-        const response = await fetch(`/api/get-product-shipped-orders`)
-        console.log("[v0] API response status:", response.status)
-        const data = await response.json()
-        console.log("[v0] API response data:", data)
-        if (data.success && data.orders) {
-          console.log("[v0] Setting shipped orders:", data.orders.length, "orders found")
-          setShippedOrders(data.orders)
-        } else {
-          console.log("[v0] No orders found or API error:", data.error)
-        }
-      } catch (error) {
-        console.error("[v0] Error fetching shipped orders:", error)
-      }
-    }
-    fetchShippedOrders()
-  }, [])
 
   const trustScore = 75 + Math.floor(Math.random() * 20)
   const rating = 4 + Math.random()
@@ -133,52 +110,8 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
     }
   }
 
-  const handlePrintLabel = async (trackingNumber: string, carrier: string, orderId: string) => {
-    setLoadingLabel(trackingNumber)
-    try {
-      const response = await fetch(`/api/get-shippo-label`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          tracking_number: trackingNumber,
-          carrier: carrier || "usps",
-          order_id: orderId,
-        }),
-      })
-      const data = await response.json()
-
-      if (data.success && data.label_url) {
-        console.log("[v0] Label retrieved from:", data.source)
-        window.open(data.label_url, "_blank")
-        toast({
-          title: "Etiqueta encontrada",
-          description: data.source === "blob" ? "Cargada desde almacenamiento" : "Descargada de Shippo",
-        })
-      } else {
-        toast({
-          title: "Error",
-          description: data.error || "No se pudo obtener la etiqueta",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] Error getting label:", error)
-      toast({
-        title: "Error",
-        description: "Error al obtener la etiqueta",
-        variant: "destructive",
-      })
-    } finally {
-      setLoadingLabel(null)
-    }
-  }
-
   const images =
     product.images && product.images.length > 0 ? product.images : [product.image_url || "/placeholder.svg"]
-
-  console.log("[v0] Rendering product detail, shipped orders count:", shippedOrders.length)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -251,49 +184,6 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
               <div className="mb-6">
                 <p className="text-gray-700 leading-relaxed">{product.description}</p>
               </div>
-
-              {shippedOrders.length > 0 && (
-                <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h3 className="font-semibold text-blue-900 mb-3">Todas las Órdenes Enviadas</h3>
-                  <p className="text-sm text-blue-700 mb-4">
-                    Mostrando {shippedOrders.length} orden(es) enviada(s). Puedes reimprimir las etiquetas de envío.
-                  </p>
-                  <div className="space-y-3">
-                    {shippedOrders.map((order) => (
-                      <div key={order.id} className="bg-white p-4 rounded-lg border border-blue-200">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <p className="font-semibold text-gray-900">Pedido #{order.id.slice(0, 8)}</p>
-                            <p className="text-sm text-gray-600">
-                              {new Date(order.created_at).toLocaleDateString("es-ES", {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                              })}
-                            </p>
-                          </div>
-                          <Badge variant="secondary" className="bg-green-100 text-green-800">
-                            Enviado
-                          </Badge>
-                        </div>
-                        <div className="mb-3">
-                          <p className="text-sm text-gray-600">Número de seguimiento:</p>
-                          <p className="font-mono text-sm font-medium text-gray-900">{order.tracking_number}</p>
-                        </div>
-                        <Button
-                          onClick={() => handlePrintLabel(order.tracking_number, order.carrier || "usps", order.id)}
-                          disabled={loadingLabel === order.tracking_number}
-                          variant="outline"
-                          className="w-full border-blue-300 text-blue-700 hover:bg-blue-100"
-                        >
-                          <Printer className="w-4 h-4 mr-2" />
-                          {loadingLabel === order.tracking_number ? "Obteniendo etiqueta..." : "Reimprimir Etiqueta"}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className="mb-6">
                 <p className="text-sm font-medium mb-2">Cantidad:</p>

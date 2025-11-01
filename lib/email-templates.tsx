@@ -2,8 +2,30 @@ import { Resend } from "resend"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+interface OrderEmailData {
+  orderNumber?: string
+  trackingNumber?: string
+  trackingUrl?: string
+  carrier?: string
+  labelUrl?: string
+  customerName?: string
+  items?: Array<{
+    name: string
+    quantity: number
+    price: number
+  }>
+  total?: number
+}
+
 export async function sendOrderEmail(to: string, subject: string, html: string) {
   try {
+    console.log("[v0] Sending email to:", to, "Subject:", subject)
+
+    if (!process.env.RESEND_API_KEY) {
+      console.warn("[v0] RESEND_API_KEY not configured, skipping email send")
+      return { success: false, error: "Email service not configured" }
+    }
+
     const { data, error } = await resend.emails.send({
       from: "YesMart USA <noreply@yesmartusa.com>",
       to: [to],
@@ -16,58 +38,50 @@ export async function sendOrderEmail(to: string, subject: string, html: string) 
       return { success: false, error }
     }
 
+    console.log("[v0] Email sent successfully:", data)
     return { success: true, data }
   } catch (error) {
-    console.error("[v0] Error sending email:", error)
+    console.error("[v0] Exception sending email:", error)
     return { success: false, error }
   }
 }
 
-export function customerShippedTemplate(data: {
-  customerName: string
-  orderNumber: string
-  trackingNumber: string
-  trackingUrl: string
-  carrier: string
-  labelUrl: string
-}) {
+export function labelCreatedTemplate(data: OrderEmailData): string {
   return `
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9fafb; }
-          .info-box { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .button { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          .header { background: #146eb4; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #146eb4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+          .info-box { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>🚚 Your Order Has Been Shipped!</h1>
+            <h1>📦 Tu etiqueta de envío está lista</h1>
           </div>
           <div class="content">
-            <p>Hi ${data.customerName},</p>
-            <p>Great news! Your order #${data.orderNumber} has been shipped and is on its way to you.</p>
+            <p>Hola,</p>
+            <p>Tu etiqueta de envío ha sido creada exitosamente.</p>
             
             <div class="info-box">
-              <p><strong>Carrier:</strong> ${data.carrier}</p>
-              <p><strong>Tracking Number:</strong> ${data.trackingNumber}</p>
-              <p><a href="${data.trackingUrl}" class="button">Track Your Package</a></p>
+              <strong>Número de seguimiento:</strong> ${data.trackingNumber || "N/A"}<br>
+              <strong>Transportista:</strong> ${data.carrier || "N/A"}
             </div>
             
-            <p>You can also download your shipping label here:</p>
-            <p><a href="${data.labelUrl}" class="button">Download Shipping Label</a></p>
+            ${data.trackingUrl ? `<a href="${data.trackingUrl}" class="button">Rastrear envío</a>` : ""}
             
-            <p>Thank you for shopping at YesMart USA!</p>
+            <p>Gracias por usar YesMart USA.</p>
           </div>
           <div class="footer">
-            <p>YesMart USA - Your trusted marketplace</p>
-            <p>If you have any questions, please contact us at support@yesmartusa.com</p>
+            <p>© ${new Date().getFullYear()} YesMart USA. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>
@@ -75,44 +89,43 @@ export function customerShippedTemplate(data: {
   `
 }
 
-export function sellerLabelCreatedTemplate(data: {
-  orderNumber: string
-  trackingNumber: string
-  carrier: string
-  labelUrl: string
-}) {
+export function inTransitTemplate(data: OrderEmailData): string {
   return `
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9fafb; }
-          .info-box { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .button { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          .header { background: #f59e0b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+          .info-box { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>📦 Shipping Label Created</h1>
+            <h1>🚚 Tu pedido va en camino</h1>
           </div>
           <div class="content">
-            <p>A shipping label has been created for order #${data.orderNumber}.</p>
+            <p>Hola ${data.customerName || ""},</p>
+            <p>¡Buenas noticias! Tu pedido está en camino.</p>
             
             <div class="info-box">
-              <p><strong>Carrier:</strong> ${data.carrier}</p>
-              <p><strong>Tracking Number:</strong> ${data.trackingNumber}</p>
+              ${data.orderNumber ? `<strong>Pedido:</strong> #${data.orderNumber}<br>` : ""}
+              <strong>Número de seguimiento:</strong> ${data.trackingNumber || "N/A"}<br>
+              <strong>Transportista:</strong> ${data.carrier || "N/A"}
             </div>
             
-            <p>Download your shipping label:</p>
-            <p><a href="${data.labelUrl}" class="button">Download Label</a></p>
+            ${data.trackingUrl ? `<a href="${data.trackingUrl}" class="button">Rastrear mi pedido</a>` : ""}
+            
+            <p>Gracias por tu compra en YesMart USA.</p>
           </div>
           <div class="footer">
-            <p>YesMart USA - Seller Portal</p>
+            <p>© ${new Date().getFullYear()} YesMart USA. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>
@@ -120,43 +133,43 @@ export function sellerLabelCreatedTemplate(data: {
   `
 }
 
-export function labelCreatedTemplate(data: {
-  customerName: string
-  orderNumber: string
-  trackingNumber: string
-  carrier: string
-}) {
+export function deliveredTemplate(data: OrderEmailData): string {
   return `
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9fafb; }
-          .info-box { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          .header { background: #10b981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+          .info-box { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>📋 Your Shipping Label is Ready</h1>
+            <h1>✅ ¡Tu pedido fue entregado!</h1>
           </div>
           <div class="content">
-            <p>Hi ${data.customerName},</p>
-            <p>Your shipping label has been created for order #${data.orderNumber}.</p>
+            <p>Hola ${data.customerName || ""},</p>
+            <p>¡Excelente! Tu pedido ha sido entregado exitosamente.</p>
             
             <div class="info-box">
-              <p><strong>Carrier:</strong> ${data.carrier}</p>
-              <p><strong>Tracking Number:</strong> ${data.trackingNumber}</p>
+              ${data.orderNumber ? `<strong>Pedido:</strong> #${data.orderNumber}<br>` : ""}
+              <strong>Número de seguimiento:</strong> ${data.trackingNumber || "N/A"}<br>
+              <strong>Transportista:</strong> ${data.carrier || "N/A"}
             </div>
             
-            <p>Your package will be shipped soon!</p>
+            <p>Esperamos que disfrutes tu compra. Si tienes alguna pregunta o problema, no dudes en contactarnos.</p>
+            
+            <p>¡Gracias por comprar en YesMart USA!</p>
           </div>
           <div class="footer">
-            <p>YesMart USA - Your trusted marketplace</p>
+            <p>© ${new Date().getFullYear()} YesMart USA. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>
@@ -164,44 +177,43 @@ export function labelCreatedTemplate(data: {
   `
 }
 
-export function inTransitTemplate(data: {
-  customerName: string
-  orderNumber: string
-  trackingNumber: string
-  trackingUrl: string
-  carrier: string
-}) {
+export function shippingFailedTemplate(data: OrderEmailData): string {
   return `
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9fafb; }
-          .info-box { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .button { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 5px; margin: 10px 0; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          .header { background: #ef4444; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #ef4444; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+          .info-box { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; border-left: 4px solid #ef4444; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>🚚 Your Package is On the Way!</h1>
+            <h1>⚠️ Problema con el envío</h1>
           </div>
           <div class="content">
-            <p>Hi ${data.customerName},</p>
-            <p>Your order #${data.orderNumber} is now in transit!</p>
+            <p>Hola ${data.customerName || ""},</p>
+            <p>Lamentamos informarte que ha ocurrido un problema con tu envío.</p>
             
             <div class="info-box">
-              <p><strong>Carrier:</strong> ${data.carrier}</p>
-              <p><strong>Tracking Number:</strong> ${data.trackingNumber}</p>
-              <p><a href="${data.trackingUrl}" class="button">Track Your Package</a></p>
+              ${data.orderNumber ? `<strong>Pedido:</strong> #${data.orderNumber}<br>` : ""}
+              <strong>Número de seguimiento:</strong> ${data.trackingNumber || "N/A"}<br>
+              <strong>Transportista:</strong> ${data.carrier || "N/A"}
             </div>
+            
+            <p>Nuestro equipo está trabajando para resolver este problema. Te contactaremos pronto con más información.</p>
+            
+            <p>Si tienes alguna pregunta, por favor contáctanos.</p>
           </div>
           <div class="footer">
-            <p>YesMart USA - Your trusted marketplace</p>
+            <p>© ${new Date().getFullYear()} YesMart USA. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>
@@ -209,87 +221,44 @@ export function inTransitTemplate(data: {
   `
 }
 
-export function deliveredTemplate(data: {
-  customerName: string
-  orderNumber: string
-  trackingNumber: string
-  carrier: string
-}) {
+export function sellerLabelCreatedTemplate(data: OrderEmailData): string {
   return `
     <!DOCTYPE html>
     <html>
       <head>
+        <meta charset="utf-8">
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #10b981; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9fafb; }
-          .info-box { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+          .header { background: #10b981; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+          .info-box { background: white; padding: 15px; border-radius: 6px; margin: 15px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
         </style>
       </head>
       <body>
         <div class="container">
           <div class="header">
-            <h1>✅ Your Package Has Been Delivered!</h1>
+            <h1>✅ Etiqueta creada</h1>
           </div>
           <div class="content">
-            <p>Hi ${data.customerName},</p>
-            <p>Great news! Your order #${data.orderNumber} has been delivered.</p>
+            <p>Hola,</p>
+            <p>Tu etiqueta de envío ha sido creada exitosamente.</p>
             
             <div class="info-box">
-              <p><strong>Carrier:</strong> ${data.carrier}</p>
-              <p><strong>Tracking Number:</strong> ${data.trackingNumber}</p>
+              ${data.orderNumber ? `<strong>Pedido:</strong> #${data.orderNumber}<br>` : ""}
+              <strong>Número de seguimiento:</strong> ${data.trackingNumber || "N/A"}<br>
+              <strong>Transportista:</strong> ${data.carrier || "N/A"}
             </div>
             
-            <p>We hope you enjoy your purchase! Thank you for shopping at YesMart USA.</p>
+            ${data.labelUrl ? `<a href="${data.labelUrl}" class="button">Descargar etiqueta</a>` : ""}
+            ${data.trackingUrl ? `<a href="${data.trackingUrl}" class="button">Ver seguimiento</a>` : ""}
+            
+            <p>Imprime la etiqueta y pégala en el paquete antes de enviarlo.</p>
           </div>
           <div class="footer">
-            <p>YesMart USA - Your trusted marketplace</p>
-          </div>
-        </div>
-      </body>
-    </html>
-  `
-}
-
-export function shippingFailedTemplate(data: {
-  customerName: string
-  orderNumber: string
-  trackingNumber: string
-  carrier: string
-}) {
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background-color: #ef4444; color: white; padding: 20px; text-align: center; }
-          .content { padding: 20px; background-color: #f9fafb; }
-          .info-box { background-color: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
-          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>⚠️ Shipping Issue with Your Order</h1>
-          </div>
-          <div class="content">
-            <p>Hi ${data.customerName},</p>
-            <p>We're sorry, but there's been an issue with the delivery of your order #${data.orderNumber}.</p>
-            
-            <div class="info-box">
-              <p><strong>Carrier:</strong> ${data.carrier}</p>
-              <p><strong>Tracking Number:</strong> ${data.trackingNumber}</p>
-            </div>
-            
-            <p>Please contact us at support@yesmartusa.com for assistance.</p>
-          </div>
-          <div class="footer">
-            <p>YesMart USA - Your trusted marketplace</p>
+            <p>© ${new Date().getFullYear()} YesMart USA. Todos los derechos reservados.</p>
           </div>
         </div>
       </body>

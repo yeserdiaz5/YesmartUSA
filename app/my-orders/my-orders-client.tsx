@@ -29,7 +29,6 @@ interface MyOrdersClientProps {
 
 export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProps) {
   const [orderShipments, setOrderShipments] = useState<Record<string, Shipment[]>>({})
-  const [loadingLabels, setLoadingLabels] = useState<Record<string, boolean>>({})
   const [cancelDialog, setCancelDialog] = useState<{ open: boolean; orderId: string | null }>({
     open: false,
     orderId: null,
@@ -78,31 +77,6 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     setIsSubmitting(false)
   }
 
-  const handlePrintLabel = async (orderId: string, trackingNumber: string, carrier: string) => {
-    setLoadingLabels((prev) => ({ ...prev, [orderId]: true }))
-
-    try {
-      const response = await fetch("/api/get-shippo-label", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tracking_number: trackingNumber, carrier: carrier }),
-      })
-
-      const data = await response.json()
-
-      if (data.success && data.label_url) {
-        window.open(data.label_url, "_blank")
-      } else {
-        alert("No se pudo obtener la etiqueta de Shippo")
-      }
-    } catch (error) {
-      console.error("[v0] Error getting label:", error)
-      alert("Error al obtener la etiqueta")
-    } finally {
-      setLoadingLabels((prev) => ({ ...prev, [orderId]: false }))
-    }
-  }
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -142,9 +116,16 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     const firstShipment = hasShipment ? orderShipments[order.id][0] : null
     const hasLabel = order.status === "shipped" || (hasShipment && firstShipment?.tracking_number)
     const canCancel = order.status === "paid" || order.status === "pending"
-    const isLoadingLabel = loadingLabels[order.id] || false
+    const labelUrl = firstShipment?.label_url || order.label_url
 
-    const labelUrl = firstShipment?.label_url || firstShipment?.label_storage_url || order.label_url
+    console.log("[v0] OrderCard for order", order.id, ":", {
+      hasShipment,
+      hasLabel,
+      labelUrl,
+      firstShipment_label_url: firstShipment?.label_url,
+      order_label_url: order.label_url,
+      order_status: order.status,
+    })
 
     return (
       <Card key={order.id}>
@@ -176,33 +157,6 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                   <p className="text-sm text-gray-600">
                     Cantidad: {item.quantity} × ${item.price_at_purchase}
                   </p>
-                  {hasLabel && (firstShipment?.tracking_number || order.tracking_number) && (
-                    <Button
-                      onClick={() =>
-                        handlePrintLabel(
-                          order.id,
-                          firstShipment?.tracking_number || order.tracking_number,
-                          firstShipment?.carrier || order.shipping_carrier || "usps",
-                        )
-                      }
-                      variant="outline"
-                      size="sm"
-                      disabled={isLoadingLabel}
-                      className="mt-2 text-xs bg-gray-100 hover:bg-gray-200 text-gray-900"
-                    >
-                      {isLoadingLabel ? (
-                        <>
-                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                          Cargando...
-                        </>
-                      ) : (
-                        <>
-                          <Printer className="w-3 h-3 mr-1" />
-                          Reimprimir Etiqueta
-                        </>
-                      )}
-                    </Button>
-                  )}
                 </div>
                 <p className="font-semibold">${(item.quantity * item.price_at_purchase).toFixed(2)}</p>
               </div>
@@ -246,20 +200,21 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                     Rastrear envío
                   </Button>
                 )}
-                {labelUrl ? (
-                  <Button
-                    onClick={() => window.open(labelUrl, "_blank")}
-                    variant="outline"
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900"
-                  >
-                    <Printer className="w-4 h-4 mr-2" />
-                    Reimprimir Etiqueta
-                  </Button>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-sm text-gray-500 bg-gray-50 rounded-md px-4 py-2 border border-gray-200">
-                    Etiqueta no disponible
-                  </div>
-                )}
+                <Button
+                  onClick={() => {
+                    if (labelUrl) {
+                      window.open(labelUrl, "_blank")
+                    } else {
+                      alert("La etiqueta de envío no está disponible. Por favor, contacta al vendedor.")
+                    }
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                  disabled={!labelUrl}
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Reimprimir Etiqueta
+                </Button>
               </div>
             </div>
           ) : order.status === "paid" ? (

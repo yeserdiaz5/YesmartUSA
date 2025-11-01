@@ -774,29 +774,3 @@ export async function getOrdersByUserEmail(email: string) {
   console.log("[v0] Orders found:", orders?.length || 0)
   return { success: true, data: orders || [] }
 }
-
-export async function getShippedOrdersForProduct(productId: string) {
-  const supabase = await createClient()
-
-  const { data: orders, error } = await supabase
-    .from("orders")
-    .select(
-      `
-      id,
-      tracking_number,
-      carrier,
-      status,
-      order_items!inner(product_id)
-    `,
-    )
-    .eq("order_items.product_id", productId)
-    .eq("status", "shipped")
-    .not("tracking_number", "is", null)
-
-  if (error) {
-    console.error("[v0] Error fetching shipped orders for product:", error)
-    return { success: false, error: error.message }
-  }
-
-  return { success: true, orders: orders || [] }
-}

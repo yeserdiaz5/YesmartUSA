@@ -35,7 +35,6 @@ interface Order {
   tracking_number?: string
   shipping_carrier?: string
   order_items: OrderItem[]
-  buyer_id?: string
 }
 
 interface Shipment {
@@ -44,9 +43,6 @@ interface Shipment {
   label_url: string
   tracking_url: string
   status: string
-  storage_path?: string
-  expires_at?: string
-  user_id?: string
 }
 
 interface ShippingRate {
@@ -278,7 +274,6 @@ export default function CreateShippoLabelPage() {
         body: JSON.stringify({
           rate_id: selectedRate.object_id,
           order_id: orderId,
-          buyer_id: order.buyer_id, // Pass buyer_id for shipment record
           to_address: {
             name: order.customer_name,
             street1: order.shipping_street,
@@ -319,17 +314,42 @@ export default function CreateShippoLabelPage() {
 
       console.log("[v0] Label created successfully:", data)
 
-      setSuccessMessage("Etiqueta creada exitosamente. Se han enviado notificaciones por email.")
+      const supabase = createClient()
 
-      const labelUrl = data.data.label_url
-      if (labelUrl) {
-        console.log("[v0] Opening label PDF:", labelUrl)
-        window.open(labelUrl, "_blank")
+      await supabase
+        .from("orders")
+        .update({
+          tracking_number: data.data.tracking_number,
+          shipping_carrier: data.data.provider || selectedRate.provider,
+          status: "shipped",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", orderId)
+
+      const { data: shipmentData } = await supabase
+        .from("shipments")
+        .insert({
+          order_id: orderId,
+          tracking_number: data.data.tracking_number,
+          carrier: data.data.provider || selectedRate.provider,
+          status: "label_created",
+          label_url: data.data.label_url,
+          tracking_url: data.data.tracking_url_provider,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (shipmentData) {
+        setExistingShipment(shipmentData as Shipment)
       }
 
-      setTimeout(() => {
-        window.location.reload()
-      }, 2000)
+      setSuccessMessage("Etiqueta creada y guardada correctamente en el pedido")
+
+      if (data.data.label_url) {
+        window.open(data.data.label_url, "_blank")
+      }
     } catch (err) {
       console.error("[v0] Error creating label:", err)
       setError(err instanceof Error ? err.message : "Error creando la etiqueta")
