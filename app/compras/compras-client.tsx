@@ -4,13 +4,13 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import SiteHeader from "@/components/site-header"
-import type { User } from "@/lib/types/database"
+import type { User, CompraWithItems, OrderItem, Product } from "@/lib/types/database"
 import { Package, Calendar, DollarSign } from "lucide-react"
 import Image from "next/image"
 
 interface ComprasClientProps {
   user: User | null
-  compras: any[]
+  compras: CompraWithItems[]
 }
 
 export default function ComprasClient({ user, compras = [] }: ComprasClientProps) {
@@ -99,7 +99,7 @@ export default function ComprasClient({ user, compras = [] }: ComprasClientProps
                 </CardHeader>
                 <CardContent className="pt-6">
                   <div className="space-y-4">
-                    {compra.order_items?.map((item: any) => (
+                    {compra.order_items?.map((item: OrderItem & { product?: Product }) => (
                       <div key={item.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
                         {item.product?.image_url || item.product?.images?.[0] ? (
                           <Image
@@ -131,18 +131,22 @@ export default function ComprasClient({ user, compras = [] }: ComprasClientProps
                     <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                       <h4 className="font-semibold mb-2">Dirección de Envío</h4>
                       <p className="text-sm text-gray-700">
-                        {compra.shipping_address.full_name || compra.shipping_address.street}
-                        <br />
-                        {compra.shipping_address.address_line1 || compra.shipping_address.street}
-                        {compra.shipping_address.address_line2 && (
+                        {(compra.shipping_address as any).full_name && (
+                          <>
+                            {(compra.shipping_address as any).full_name}
+                            <br />
+                          </>
+                        )}
+                        {(compra.shipping_address as any).address_line1 || compra.shipping_address.street}
+                        {(compra.shipping_address as any).address_line2 && (
                           <>
                             <br />
-                            {compra.shipping_address.address_line2}
+                            {(compra.shipping_address as any).address_line2}
                           </>
                         )}
                         <br />
                         {compra.shipping_address.city}, {compra.shipping_address.state}{" "}
-                        {compra.shipping_address.postal_code || compra.shipping_address.zip}
+                        {(compra.shipping_address as any).postal_code || compra.shipping_address.zip}
                       </p>
                     </div>
                   )}
