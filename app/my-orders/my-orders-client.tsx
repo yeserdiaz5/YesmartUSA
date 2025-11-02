@@ -4,24 +4,11 @@ import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import SiteHeader from "@/components/site-header"
 import type { User } from "@/lib/types/database"
-import { Package, Truck, ExternalLink, Printer, XCircle, Loader2 } from "lucide-react"
+import { Package, Truck, ExternalLink } from "lucide-react"
 import { getOrderShipments, type Shipment } from "../actions/shipments"
-import { cancelOrder } from "../actions/orders"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 
 interface MyOrdersClientProps {
   user: User | null
@@ -30,12 +17,6 @@ interface MyOrdersClientProps {
 
 export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProps) {
   const [orderShipments, setOrderShipments] = useState<Record<string, Shipment[]>>({})
-  const [cancelDialog, setCancelDialog] = useState<{ open: boolean; orderId: string | null }>({
-    open: false,
-    orderId: null,
-  })
-  const [cancellationReason, setCancellationReason] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -58,23 +39,6 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
 
     fetchShipments()
   }, [orders])
-
-  const handleCancelOrder = async () => {
-    if (!cancelDialog.orderId || !cancellationReason) {
-      return
-    }
-
-    setIsSubmitting(true)
-    const result = await cancelOrder(cancelDialog.orderId, cancellationReason)
-
-    if (result.success) {
-      setCancelDialog({ open: false, orderId: null })
-      setCancellationReason("")
-      router.refresh()
-    }
-
-    setIsSubmitting(false)
-  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -106,17 +70,10 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
     }
   }
 
-  const pendingOrders = orders.filter((order) => order.status === "paid" || order.status === "pending")
-  const shippedOrders = orders.filter((order) => order.status === "shipped")
-  const cancelledOrders = orders.filter((order) => order.status === "cancelled")
-
   const OrderCard = ({ order }: { order: any }) => {
     const hasShipment = orderShipments[order.id] && orderShipments[order.id].length > 0
     const firstShipment = hasShipment ? orderShipments[order.id][0] : null
     const hasLabel = order.status === "shipped" || (hasShipment && firstShipment?.tracking_number)
-    const canCancel = order.status === "paid" || order.status === "pending"
-    const labelUrl = firstShipment?.label_url || order.label_url
-    const canCreateShipment = order.status === "paid" && !hasShipment
 
     return (
       <Card key={order.id}>
@@ -160,10 +117,10 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
           </div>
 
           {hasLabel ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-3">
                 <Truck className="w-5 h-5 text-blue-600" />
-                <h3 className="font-semibold text-blue-900">Pedido enviado 📦</h3>
+                <h3 className="font-semibold text-blue-900">Tu pedido ha sido enviado 📦</h3>
               </div>
 
               <div className="space-y-2 mb-3">
@@ -181,57 +138,40 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                {firstShipment?.tracking_url && (
-                  <Button
-                    onClick={() => window.open(firstShipment.tracking_url, "_blank")}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Rastrear envío
-                  </Button>
-                )}
+              {firstShipment?.tracking_url && (
                 <Button
-                  onClick={() => {
-                    if (labelUrl) {
-                      window.open(labelUrl, "_blank")
-                    } else {
-                      alert("La etiqueta de envío no está disponible.")
-                    }
-                  }}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={!labelUrl}
+                  onClick={() => window.open(firstShipment.tracking_url, "_blank")}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Reimprimir Etiqueta
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Rastrear envío
                 </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {canCreateShipment && (
-                <Link href={`/create-shippo-label?orderId=${order.id}`}>
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                    <Truck className="w-4 h-4 mr-2" />
-                    Comprar Envío
-                  </Button>
-                </Link>
               )}
-              <div className="flex gap-2">
-                {canCancel && (
-                  <Button
-                    onClick={() => setCancelDialog({ open: true, orderId: order.id })}
-                    variant="outline"
-                    className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Cancelar Pedido
-                  </Button>
-                )}
+            </div>
+          ) : order.status === "paid" ? (
+            <div className="space-y-3">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-orange-600" />
+                  <p className="text-orange-900 font-medium">Tu pedido está siendo preparado para envío 🚚</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => router.push(`/create-shippo-label?order_id=${order.id}`)}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Truck className="w-4 h-4 mr-2" />
+                Comprar Envío
+              </Button>
+            </div>
+          ) : order.status === "pending" ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-yellow-600" />
+                <p className="text-yellow-900 font-medium">Esperando confirmación de pago</p>
               </div>
             </div>
-          )}
+          ) : null}
 
           {order.status === "cancelled" && order.cancellation_reason && (
             <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -243,15 +183,6 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
       </Card>
     )
   }
-
-  const EmptyState = ({ message }: { message: string }) => (
-    <Card>
-      <CardContent className="p-12 text-center">
-        <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-        <h2 className="text-xl font-semibold mb-2">{message}</h2>
-      </CardContent>
-    </Card>
-  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -267,92 +198,21 @@ export default function MyOrdersClient({ user, orders = [] }: MyOrdersClientProp
         </div>
 
         {!Array.isArray(orders) || orders.length === 0 ? (
-          <EmptyState message="No tienes pedidos todavía" />
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+              <h2 className="text-xl font-semibold mb-2">No tienes pedidos todavía</h2>
+              <p className="text-gray-600">Tus pedidos aparecerán aquí una vez que realices una compra</p>
+            </CardContent>
+          </Card>
         ) : (
-          <Tabs defaultValue="pending" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-6">
-              <TabsTrigger value="pending" className="flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                Pendientes ({pendingOrders.length})
-              </TabsTrigger>
-              <TabsTrigger value="shipped" className="flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                Enviados ({shippedOrders.length})
-              </TabsTrigger>
-              <TabsTrigger value="cancelled" className="flex items-center gap-2">
-                <XCircle className="w-4 h-4" />
-                Cancelados ({cancelledOrders.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="pending" className="space-y-4">
-              {pendingOrders.length === 0 ? (
-                <EmptyState message="No tienes pedidos pendientes" />
-              ) : (
-                pendingOrders.map((order) => <OrderCard key={order.id} order={order} />)
-              )}
-            </TabsContent>
-
-            <TabsContent value="shipped" className="space-y-4">
-              {shippedOrders.length === 0 ? (
-                <EmptyState message="No tienes pedidos enviados" />
-              ) : (
-                shippedOrders.map((order) => <OrderCard key={order.id} order={order} />)
-              )}
-            </TabsContent>
-
-            <TabsContent value="cancelled" className="space-y-4">
-              {cancelledOrders.length === 0 ? (
-                <EmptyState message="No tienes pedidos cancelados" />
-              ) : (
-                cancelledOrders.map((order) => <OrderCard key={order.id} order={order} />)
-              )}
-            </TabsContent>
-          </Tabs>
+          <div className="space-y-4">
+            {orders.map((order) => (
+              <OrderCard key={order.id} order={order} />
+            ))}
+          </div>
         )}
       </div>
-
-      <Dialog open={cancelDialog.open} onOpenChange={(open) => setCancelDialog({ open, orderId: null })}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cancelar Pedido</DialogTitle>
-            <DialogDescription>
-              Por favor, indica el motivo de la cancelación. Esta acción no se puede deshacer.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="reason">Motivo de cancelación</Label>
-              <Textarea
-                id="reason"
-                placeholder="Ej: Cambié de opinión, encontré un mejor precio, etc."
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCancelDialog({ open: false, orderId: null })}>
-              Volver
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleCancelOrder}
-              disabled={isSubmitting || !cancellationReason.trim()}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Cancelando...
-                </>
-              ) : (
-                "Confirmar Cancelación"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

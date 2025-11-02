@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { getSellerOrders } from "@/app/actions/orders"
+import { getOrders } from "@/app/actions/orders"
 import MyOrdersClient from "./my-orders-client"
 
 export default async function MyOrdersPage() {
@@ -15,7 +15,7 @@ export default async function MyOrdersPage() {
 
   const { data: userProfile } = await supabase.from("users").select("*").eq("id", user.id).single()
 
-  const ordersResult = await getSellerOrders()
+  const ordersResult = await getOrders()
   const orders = ordersResult.success ? ordersResult.data || [] : []
 
   return <MyOrdersClient user={userProfile} orders={orders} />

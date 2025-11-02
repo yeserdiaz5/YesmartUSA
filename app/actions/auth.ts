@@ -26,7 +26,10 @@ export async function loginWithPassword(email: string, password: string) {
   console.log("[v0] loginWithPassword - Success, user:", data.user?.email)
 
   revalidatePath("/", "layout")
-  redirect("/")
+  return {
+    success: true,
+    user: data.user,
+  }
 }
 
 export async function logout() {
