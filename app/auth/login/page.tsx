@@ -27,27 +27,20 @@ export default function LoginPage() {
     console.log("[v0] 🔐 Attempting login with email:", email)
 
     try {
-      const result = await loginWithPassword(email, password)
-
-      console.log("[v0] 🔐 Login response:", result)
-
-      if (!result.success) {
-        console.error("[v0] ❌ Login error:", result.error)
-        if (result.error === "Invalid login credentials") {
-          throw new Error(
-            "Credenciales inválidas. Si te registraste con Google, usa el botón 'Continuar con Google' o restablece tu contraseña.",
-          )
-        }
-        throw new Error(result.error)
-      }
-
-      console.log("[v0] ✅ Login successful, redirecting...")
-      window.location.href = "/"
+      await loginWithPassword(email, password)
+      // If we reach here, redirect happened on server
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "An error occurred"
       console.error("[v0] ❌ Login failed:", errorMessage)
-      setError(errorMessage)
-    } finally {
+
+      // Check for specific error messages
+      if (errorMessage.includes("Invalid login credentials") || errorMessage.includes("Invalid")) {
+        setError(
+          "Credenciales inválidas. Si te registraste con Google, usa el botón 'Continuar con Google' o restablece tu contraseña.",
+        )
+      } else {
+        setError(errorMessage)
+      }
       setIsLoading(false)
     }
   }

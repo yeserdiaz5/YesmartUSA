@@ -490,8 +490,8 @@ export async function getSellerOrders() {
   }
 
   console.log("[v0] Fetching seller orders for user:", user.id)
-  console.log("[v0] User email:", user.email)
 
+  // Get order items for this seller's products
   const { data: orderItems, error: itemsError } = await supabase
     .from("order_items")
     .select(`
@@ -511,34 +511,23 @@ export async function getSellerOrders() {
         images
       )
     `)
-    .eq("seller_id", user.id) // This ensures we only get items for this seller
+    .eq("seller_id", user.id)
     .order("created_at", { ascending: false })
 
   console.log("[v0] Order items found:", orderItems?.length || 0)
-  if (orderItems && orderItems.length > 0) {
-    console.log("[v0] First 3 order items details:")
-    orderItems.slice(0, 3).forEach((item, index) => {
-      console.log(`[v0] Item ${index + 1}:`, {
-        order_id: item.order_id,
-        product_title: item.product?.title,
-        seller_id: item.seller_id,
-        user_id: user.id,
-        matches: item.seller_id === user.id,
-      })
-    })
-  }
 
   if (itemsError) {
     console.error("[v0] Error fetching seller orders:", itemsError)
     return { success: false, error: itemsError.message }
   }
 
+  // Group by order
   const ordersMap = new Map()
   orderItems?.forEach((item) => {
     if (!ordersMap.has(item.order.id)) {
       ordersMap.set(item.order.id, {
         ...item.order,
-        items: [], // This will only contain items for the current seller
+        items: [],
       })
     }
     ordersMap.get(item.order.id).items.push({
@@ -546,26 +535,12 @@ export async function getSellerOrders() {
       quantity: item.quantity,
       price_at_purchase: item.price_at_purchase,
       product: item.product,
-      seller_id: item.seller_id,
     })
   })
 
   const orders = Array.from(ordersMap.values())
 
   console.log("[v0] Grouped orders:", orders.length)
-  console.log(
-    "[v0] Sample order items:",
-    orders[0]?.items?.map((i: any) => i.product?.title),
-  )
-  if (orders[0]?.items) {
-    console.log(
-      "[v0] Seller IDs in first order:",
-      orders[0].items.map((i: any) => ({
-        product: i.product?.title,
-        seller_id: i.seller_id,
-      })),
-    )
-  }
 
   return { success: true, data: orders }
 }
