@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
-import { Star, Search, ShoppingCart, Plus, Minus } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Star, Search, ShoppingCart, Plus, Minus, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation"
 import { addToCart } from "@/app/actions/cart"
 import { useToast } from "@/hooks/use-toast"
 import { addToGuestCart } from "@/lib/guest-cart"
+import { useBuyerLocation } from "@/hooks/use-buyer-location"
+import { calculateDistance, getDeliveryTimeMessage, geocodeAddress } from "@/lib/geolocation"
 
 interface BuyerHomepageClientProps {
   user: User | null
@@ -77,7 +79,84 @@ function TrustBadge({ score }: { score: number }) {
   )
 }
 
-function ProductCard({ product, userId }: { product: any; userId: string | null }) {
+interface SellerLocationProps {
+  seller: any
+  buyerLocation: { latitude: number; longitude: number } | null
+}
+
+function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
+  const [deliveryInfo, setDeliveryInfo] = useState<{
+    location: string
+    deliveryTime: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    async function calculateDeliveryInfo() {
+      if (!seller?.seller_address?.city || !seller?.seller_address?.state) {
+        return
+      }
+
+      const locationStr = `${seller.seller_address.city}, ${seller.seller_address.state}`
+
+      // If buyer location is available, calculate distance and delivery time
+      if (buyerLocation) {
+        try {
+          const sellerCoords = await geocodeAddress(
+            seller.seller_address.city,
+            seller.seller_address.state
+          )
+
+          if (sellerCoords) {
+            const distance = calculateDistance(
+              buyerLocation.latitude,
+              buyerLocation.longitude,
+              sellerCoords.lat,
+              sellerCoords.lng
+            )
+            const deliveryTime = getDeliveryTimeMessage(distance)
+
+            setDeliveryInfo({
+              location: locationStr,
+              deliveryTime,
+            })
+            return
+          }
+        } catch (error) {
+          console.error("Error calculating delivery info:", error)
+        }
+      }
+
+      // If no buyer location or geocoding failed, just show location
+      setDeliveryInfo({
+        location: locationStr,
+        deliveryTime: null,
+      })
+    }
+
+    calculateDeliveryInfo()
+  }, [seller, buyerLocation])
+
+  if (!deliveryInfo) {
+    return null
+  }
+
+  return (
+    <div className="space-y-1 text-xs">
+      <div className="flex items-center gap-1 text-gray-600">
+        <MapPin className="w-3 h-3" />
+        <span>{deliveryInfo.location}</span>
+      </div>
+      {deliveryInfo.deliveryTime && (
+        <div className="flex items-center gap-1 text-green-600 font-medium">
+          <Clock className="w-3 h-3" />
+          <span>{deliveryInfo.deliveryTime}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProductCard({ product, userId, buyerLocation }: { product: any; userId: string | null; buyerLocation: { latitude: number; longitude: number } | null }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
@@ -220,11 +299,15 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           <span className="text-lg font-bold text-gray-900">${product.price}</span>
         </div>
 
-        <div className="text-xs text-gray-600 mb-3">
+        <div className="text-xs text-gray-600 mb-2">
           by{" "}
           <span className="text-blue-600 hover:underline">
-            {product.seller?.full_name || product.seller?.email || "Unknown Seller"}
+            {product.seller?.store_name || product.seller?.full_name || product.seller?.email || "Unknown Seller"}
           </span>
+        </div>
+
+        <div className="mb-3">
+          <SellerLocationInfo seller={product.seller} buyerLocation={buyerLocation} />
         </div>
 
         <div className="mb-3">
@@ -282,6 +365,7 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
+  const { location: buyerLocation } = useBuyerLocation()
 
   const handleCategoryChange = (categorySlug: string, checked: boolean) => {
     if (checked) {
@@ -444,7 +528,7 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} userId={user?.id || null} />
+                  <ProductCard key={product.id} product={product} userId={user?.id || null} buyerLocation={buyerLocation} />
                 ))}
               </div>
             ) : (
