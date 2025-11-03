@@ -85,58 +85,48 @@ interface SellerLocationProps {
 }
 
 function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
-  const [deliveryInfo, setDeliveryInfo] = useState<{
-    location: string
-    deliveryTime: string | null
-  } | null>(null)
+  const [deliveryTime, setDeliveryTime] = useState<string | null>(null)
+
+  // Always show seller location immediately if available
+  const locationStr = seller?.seller_address?.city && seller?.seller_address?.state
+    ? `${seller.seller_address.city}, ${seller.seller_address.state}`
+    : null
 
   useEffect(() => {
-    async function calculateDeliveryInfo() {
-      if (!seller?.seller_address?.city || !seller?.seller_address?.state) {
-        return
-      }
-
-      const locationStr = `${seller.seller_address.city}, ${seller.seller_address.state}`
-
-      // If buyer location is available, calculate distance and delivery time
-      if (buyerLocation) {
-        try {
-          const sellerCoords = await geocodeAddress(
-            seller.seller_address.city,
-            seller.seller_address.state
-          )
-
-          if (sellerCoords) {
-            const distance = calculateDistance(
-              buyerLocation.latitude,
-              buyerLocation.longitude,
-              sellerCoords.lat,
-              sellerCoords.lng
-            )
-            const deliveryTime = getDeliveryTimeMessage(distance)
-
-            setDeliveryInfo({
-              location: locationStr,
-              deliveryTime,
-            })
-            return
-          }
-        } catch (error) {
-          console.error("Error calculating delivery info:", error)
-        }
-      }
-
-      // If no buyer location or geocoding failed, just show location
-      setDeliveryInfo({
-        location: locationStr,
-        deliveryTime: null,
-      })
+    // Only calculate delivery time if we have both buyer location and seller address
+    if (!buyerLocation || !seller?.seller_address?.city || !seller?.seller_address?.state) {
+      setDeliveryTime(null)
+      return
     }
 
-    calculateDeliveryInfo()
+    async function calculateDeliveryTime() {
+      try {
+        const sellerCoords = await geocodeAddress(
+          seller.seller_address.city,
+          seller.seller_address.state
+        )
+
+        if (sellerCoords) {
+          const distance = calculateDistance(
+            buyerLocation.latitude,
+            buyerLocation.longitude,
+            sellerCoords.lat,
+            sellerCoords.lng
+          )
+          const deliveryTimeMsg = getDeliveryTimeMessage(distance)
+          setDeliveryTime(deliveryTimeMsg)
+        }
+      } catch (error) {
+        console.error("Error calculating delivery time:", error)
+        setDeliveryTime(null)
+      }
+    }
+
+    calculateDeliveryTime()
   }, [seller, buyerLocation])
 
-  if (!deliveryInfo) {
+  // Don't render if no location available
+  if (!locationStr) {
     return null
   }
 
@@ -144,12 +134,12 @@ function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
     <div className="space-y-1 text-xs">
       <div className="flex items-center gap-1 text-gray-600">
         <MapPin className="w-3 h-3" />
-        <span>{deliveryInfo.location}</span>
+        <span>{locationStr}</span>
       </div>
-      {deliveryInfo.deliveryTime && (
+      {deliveryTime && (
         <div className="flex items-center gap-1 text-green-600 font-medium">
           <Clock className="w-3 h-3" />
-          <span>{deliveryInfo.deliveryTime}</span>
+          <span>{deliveryTime}</span>
         </div>
       )}
     </div>
