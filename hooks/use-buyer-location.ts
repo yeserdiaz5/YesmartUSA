@@ -54,6 +54,9 @@ export function useBuyerLocation() {
             setError(null)
 
             // Cache the new location
+            // Note: This location data is approximate (city-level) and used only for
+            // calculating delivery estimates. It's not personally identifiable information
+            // and caching improves UX by avoiding repeated geolocation prompts.
             const cacheData: CachedLocation = {
               location: buyerLocation,
               timestamp: Date.now(),
