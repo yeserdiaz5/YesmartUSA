@@ -63,7 +63,7 @@ export function UserMenu({ user }: UserMenuProps) {
         <DropdownMenuItem asChild>
           <Link href="/seller" className="cursor-pointer">
             <Store className="w-4 h-4 mr-2" />
-            Panel de Vendedor
+            Mi Tienda
           </Link>
         </DropdownMenuItem>
         {user.role === "admin" && (
