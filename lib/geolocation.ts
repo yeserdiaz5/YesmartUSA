@@ -56,8 +56,7 @@ export function getDeliveryTimeMessage(distanceKm: number): string {
 
 /**
  * Geocode a city and state to latitude/longitude coordinates
- * Uses a simple approximation with common US city coordinates
- * In production, this should use a geocoding API like Google Maps or OpenCage
+ * Uses OpenStreetMap Nominatim with proper caching and rate limiting
  * 
  * @param city City name
  * @param state State code (e.g., "FL", "CA")
@@ -67,32 +66,57 @@ export async function geocodeAddress(
   city: string,
   state: string
 ): Promise<{ lat: number; lng: number } | null> {
+  // Check cache first to avoid hitting rate limits
+  const cacheKey = `geocode_${city}_${state}`
+  const cached = typeof window !== "undefined" ? sessionStorage.getItem(cacheKey) : null
+  
+  if (cached) {
+    try {
+      return JSON.parse(cached)
+    } catch {
+      // Invalid cache, continue to fetch
+    }
+  }
+
   try {
-    // In a real implementation, you would use a geocoding API
-    // For now, we'll use a free public API (nominatim) with proper rate limiting
+    // Add delay to respect rate limits (max 1 request per second for Nominatim)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(
         city
       )}&state=${encodeURIComponent(state)}&country=USA&format=json&limit=1`,
       {
         headers: {
-          "User-Agent": "YesmartUSA-App",
+          "User-Agent": "YesmartUSA-App/1.0 (marketplace)",
         },
       }
     )
 
     if (!response.ok) {
-      console.error("Geocoding API request failed:", response.statusText)
+      // Handle rate limiting specifically
+      if (response.status === 429) {
+        console.warn("Geocoding rate limit reached. Using fallback.")
+      } else {
+        console.error("Geocoding API request failed:", response.statusText)
+      }
       return null
     }
 
     const data = await response.json()
 
     if (data && data.length > 0) {
-      return {
+      const coords = {
         lat: parseFloat(data[0].lat),
         lng: parseFloat(data[0].lon),
       }
+      
+      // Cache successful result
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(cacheKey, JSON.stringify(coords))
+      }
+      
+      return coords
     }
 
     return null
@@ -126,7 +150,7 @@ export async function getBuyerLocation(): Promise<GeoLocation | null> {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 5000,
-          maximumAge: 0,
+          maximumAge: 300000, // Cache location for 5 minutes
         })
       }
     )
