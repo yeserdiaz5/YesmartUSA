@@ -111,7 +111,7 @@ export async function createStripeCheckoutSession(checkoutData: CheckoutData, is
       currency: "usd",
       product_data: {
         name: item.product.title,
-        description: item.product.description || "",
+        ...(item.product.description && { description: item.product.description }),
       },
       unit_amount: Math.round(item.product.price * 100), // Convert to cents
     },
