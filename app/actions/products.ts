@@ -323,7 +323,8 @@ export async function getAllProducts(categorySlug?: string, searchQuery?: string
         id,
         full_name,
         email,
-        store_name
+        store_name,
+        seller_address
       ),
       product_categories (
         category:categories (*)
