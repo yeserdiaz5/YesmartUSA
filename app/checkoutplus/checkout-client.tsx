@@ -222,18 +222,26 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
         </Button>
 
         {isGuest && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              Estás comprando como invitado. Puedes{" "}
-              <a href="/auth/login" className="underline font-medium">
-                iniciar sesión
-              </a>{" "}
-              o{" "}
-              <a href="/auth/sign-up" className="underline font-medium">
-                crear una cuenta
-              </a>{" "}
-              para guardar tu historial de pedidos.
-            </p>
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <ShoppingBag className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-blue-900 mb-1">Compra como Invitado</h3>
+                <p className="text-sm text-blue-800">
+                  Puedes completar tu compra sin crear una cuenta. Si deseas guardar tu historial de pedidos,{" "}
+                  <a href="/auth/login" className="underline font-medium hover:text-blue-900">
+                    inicia sesión
+                  </a>{" "}
+                  o{" "}
+                  <a href="/auth/sign-up" className="underline font-medium hover:text-blue-900">
+                    crea una cuenta
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
