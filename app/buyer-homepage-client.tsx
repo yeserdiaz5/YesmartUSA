@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Star, Search, ShoppingCart, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import { addToCart } from "@/app/actions/cart"
 import { useToast } from "@/hooks/use-toast"
 import { addToGuestCart } from "@/lib/guest-cart"
+import { getCurrentPosition, haversineDistanceKm, estimateDeliveryTimeText } from "@/lib/utils/geo"
 
 interface BuyerHomepageClientProps {
   user: User | null
@@ -22,7 +23,7 @@ interface BuyerHomepageClientProps {
   categories: any[]
 }
 
-function ProductCard({ product, userId }: { product: any; userId: string | null }) {
+function ProductCard({ product, userId, deliveryEstimate }: { product: any; userId: string | null; deliveryEstimate?: string }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
@@ -171,6 +172,10 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           </span>
         </div>
 
+        <div className="text-sm text-gray-500 mb-3">
+          Tiempo de entrega: {deliveryEstimate || "—"}
+        </div>
+
         <div className="flex items-center gap-2 mb-3">
           <Button
             variant="outline"
@@ -220,7 +225,22 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
   const [priceRange, setPriceRange] = useState([0, 200])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const { toast } = useToast()
+
+  // Get user's location on component mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      getCurrentPosition()
+        .then((location) => {
+          setUserLocation(location)
+        })
+        .catch((error) => {
+          console.log("Could not get user location:", error.message)
+          // User denied or error occurred - keep userLocation as null
+        })
+    }
+  }, [])
 
   const handleCategoryChange = (categorySlug: string, checked: boolean) => {
     if (checked) {
@@ -375,9 +395,27 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
 
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} userId={user?.id || null} />
-                ))}
+                {filteredProducts.map((product) => {
+                  let deliveryEstimate: string | undefined
+                  
+                  // Calculate delivery estimate if we have both user and seller locations
+                  if (userLocation && product.seller?.location?.latitude && product.seller?.location?.longitude) {
+                    const distance = haversineDistanceKm(userLocation, {
+                      latitude: product.seller.location.latitude,
+                      longitude: product.seller.location.longitude,
+                    })
+                    deliveryEstimate = estimateDeliveryTimeText(distance)
+                  }
+                  
+                  return (
+                    <ProductCard 
+                      key={product.id} 
+                      product={product} 
+                      userId={user?.id || null}
+                      deliveryEstimate={deliveryEstimate}
+                    />
+                  )
+                })}
               </div>
             ) : (
               <div className="text-center py-12">
