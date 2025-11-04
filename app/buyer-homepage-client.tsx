@@ -1,8 +1,8 @@
-"use client"
+use client
 
 import type React from "react"
-import { useState, useMemo } from "react"
-import { Star, Search, ShoppingCart, Plus, Minus } from "lucide-react"
+import { useState, useMemo, useEffect } from "react"
+import { Star, Search, ShoppingCart, Plus, Minus, MapPin, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation"
 import { addToCart } from "@/app/actions/cart"
 import { useToast } from "@/hooks/use-toast"
 import { addToGuestCart } from "@/lib/guest-cart"
+import { useBuyerLocation } from "@/hooks/use-buyer-location"
+import { calculateDistance, getDeliveryTimeMessage, geocodeAddress } from "@/lib/geolocation"
 
 interface BuyerHomepageClientProps {
   user: User | null
@@ -56,7 +58,7 @@ function TrustBadge({ score }: { score: number }) {
   const scoreData = getScoreData(score)
 
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${scoreData.color}`}>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${scoreData.color}`}>  
       <span className="text-sm">{scoreData.icon}</span>
       <div className="flex flex-col">
         <div className="flex items-center gap-2">
@@ -67,7 +69,8 @@ function TrustBadge({ score }: { score: number }) {
           <div className="w-12 h-1 bg-gray-200 rounded-full overflow-hidden">
             <div
               className={`h-full ${scoreData.barColor} transition-all duration-300`}
-              style={{ width: `${score}%` }}
+              style={{ width: 
+`${score}%` }}
             />
           </div>
           <span className="text-xs opacity-75">{scoreData.label}</span>
@@ -77,7 +80,74 @@ function TrustBadge({ score }: { score: number }) {
   )
 }
 
-function ProductCard({ product, userId }: { product: any; userId: string | null }) {
+interface SellerLocationProps {
+  seller: any
+  buyerLocation: { latitude: number; longitude: number } | null
+}
+
+function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
+  const [deliveryTime, setDeliveryTime] = useState<string | null>(null)
+
+  // Always show seller location immediately if available
+  const locationStr = seller?.seller_address?.city && seller?.seller_address?.state
+    ? `${seller.seller_address.city}, ${seller.seller_address.state}`
+    : null
+
+  useEffect(() => {
+    // Only calculate delivery time if we have both buyer location and seller address
+    if (!buyerLocation || !seller?.seller_address?.city || !seller?.seller_address?.state) {
+      setDeliveryTime(null)
+      return
+    }
+
+    async function calculateDeliveryTime() {
+      try {
+        const sellerCoords = await geocodeAddress(
+          seller.seller_address.city,
+          seller.seller_address.state
+        )
+
+        if (sellerCoords) {
+          const distance = calculateDistance(
+            buyerLocation.latitude,
+            buyerLocation.longitude,
+            sellerCoords.lat,
+            sellerCoords.lng
+          )
+          const deliveryTimeMsg = getDeliveryTimeMessage(distance)
+          setDeliveryTime(deliveryTimeMsg)
+        }
+      } catch (error) {
+        console.error("Error calculating delivery time:", error)
+        setDeliveryTime(null)
+      }
+    }
+
+    calculateDeliveryTime()
+  }, [seller, buyerLocation])
+
+  // Don't render if no location available
+  if (!locationStr) {
+    return null
+  }
+
+  return (
+    <div className="space-y-1 text-xs">
+      <div className="flex items-center gap-1 text-gray-600">
+        <MapPin className="w-3 h-3" />
+        <span>{locationStr}</span>
+      </div>
+      {deliveryTime && (
+        <div className="flex items-center gap-1 text-green-600 font-medium">
+          <Clock className="w-3 h-3" />
+          <span>{deliveryTime}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProductCard({ product, userId, buyerLocation }: { product: any; userId: string | null; buyerLocation: { latitude: number; longitude: number } | null }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
@@ -187,7 +257,7 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
       <CardContent className="p-4">
-        <Link href={`/productdes/${product.id}`}>
+        <Link href={`/productdes/${product.id}`}>  
           <div className="relative mb-3 cursor-pointer">
             <img
               src={product.image_url || "/placeholder.svg"}
@@ -200,7 +270,7 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           </div>
         </Link>
 
-        <Link href={`/productdes/${product.id}`}>
+        <Link href={`/productdes/${product.id}`}>  
           <h3 className="font-medium text-sm mb-2 line-clamp-2 hover:text-blue-600 cursor-pointer">{product.title}</h3>
         </Link>
 
@@ -220,7 +290,7 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           <span className="text-lg font-bold text-gray-900">${product.price}</span>
         </div>
 
-        <div className="text-xs text-gray-600 mb-3">
+        <div className="text-xs text-gray-600 mb-2">
           <Link 
             href={`/tienda/${product.seller?.id}`}
             className="text-blue-600 hover:underline font-medium"
@@ -228,6 +298,10 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           >
             {product.seller?.store_name || product.seller?.full_name || "Tienda"}
           </Link>
+        </div>
+
+        <div className="mb-3">
+          <SellerLocationInfo seller={product.seller} buyerLocation={buyerLocation} />
         </div>
 
         <div className="mb-3">
@@ -285,6 +359,7 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
+  const { location: buyerLocation } = useBuyerLocation()
 
   const handleCategoryChange = (categorySlug: string, checked: boolean) => {
     if (checked) {
@@ -429,25 +504,12 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600">
-                  {filteredProducts.length} of {products.length} results
-                </span>
-                <select className="border rounded-md px-3 py-1 text-sm">
-                  <option>Best Match</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                  <option>Customer Rating</option>
-                  <option>Trust Score</option>
-                </select>
-              </div>
-            </div>
+            {/* results header removed (count + sort selector) */}
 
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} userId={user?.id || null} />
+                  <ProductCard key={product.id} product={product} userId={user?.id || null} buyerLocation={buyerLocation} />
                 ))}
               </div>
             ) : (
