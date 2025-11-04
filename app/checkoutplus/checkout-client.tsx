@@ -14,6 +14,7 @@ import { createTestOrder, createGuestOrder } from "@/app/actions/orders"
 import { SiteHeader } from "@/components/site-header"
 import { getGuestCart, updateGuestCartQuantity, removeFromGuestCart, clearGuestCart } from "@/lib/guest-cart"
 import { createStripeCheckoutSession } from "@/app/actions/stripe"
+import { DeliveryEstimate } from "@/components/DeliveryEstimate"
 
 interface CheckoutClientProps {
   initialUser: any
@@ -343,6 +344,13 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
                     <div className="flex-1">
                       <h3 className="font-medium">{item.product.title}</h3>
                       <p className="text-lg font-semibold text-blue-600">${item.product.price.toFixed(2)}</p>
+                      {item.product.seller_id && (
+                        <DeliveryEstimate 
+                          sellerId={item.product.seller_id} 
+                          compact={true}
+                          className="mt-2"
+                        />
+                      )}
                       <div className="flex items-center gap-2 mt-2">
                         <Button
                           variant="outline"
