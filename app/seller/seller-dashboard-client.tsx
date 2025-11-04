@@ -160,6 +160,15 @@ export default function SellerDashboardClient({ user, products, orders }: Seller
               <p className="text-gray-600">Welcome back, {user.full_name || user.email}</p>
             </div>
             <div className="flex gap-2">
+              <Link href="/seller/pagos">
+                <Button
+                  variant="outline"
+                  className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:from-green-100 hover:to-emerald-100"
+                >
+                  <DollarSign className="w-4 h-4 mr-2 text-green-600" />
+                  <span className="text-green-700 font-semibold">Pagos</span>
+                </Button>
+              </Link>
               <Button variant="outline" onClick={handleTestLabel} disabled={isTestingLabel}>
                 <FileText className="w-4 h-4 mr-2" />
                 {isTestingLabel ? "Creando..." : "Etiqueta de Prueba"}
