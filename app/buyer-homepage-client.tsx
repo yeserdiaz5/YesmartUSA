@@ -1,4 +1,4 @@
-"use client"
+use client
 
 import type React from "react"
 import { useState, useMemo, useEffect } from "react"
@@ -58,7 +58,7 @@ function TrustBadge({ score }: { score: number }) {
   const scoreData = getScoreData(score)
 
   return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${scoreData.color}`}>
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${scoreData.color}`}>  
       <span className="text-sm">{scoreData.icon}</span>
       <div className="flex flex-col">
         <div className="flex items-center gap-2">
@@ -69,7 +69,8 @@ function TrustBadge({ score }: { score: number }) {
           <div className="w-12 h-1 bg-gray-200 rounded-full overflow-hidden">
             <div
               className={`h-full ${scoreData.barColor} transition-all duration-300`}
-              style={{ width: `${score}%` }}
+              style={{ width: 
+`${score}%` }}
             />
           </div>
           <span className="text-xs opacity-75">{scoreData.label}</span>
@@ -256,7 +257,7 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
       <CardContent className="p-4">
-        <Link href={`/productdes/${product.id}`}>
+        <Link href={`/productdes/${product.id}`}>  
           <div className="relative mb-3 cursor-pointer">
             <img
               src={product.image_url || "/placeholder.svg"}
@@ -269,7 +270,7 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
           </div>
         </Link>
 
-        <Link href={`/productdes/${product.id}`}>
+        <Link href={`/productdes/${product.id}`}>  
           <h3 className="font-medium text-sm mb-2 line-clamp-2 hover:text-blue-600 cursor-pointer">{product.title}</h3>
         </Link>
 
@@ -290,7 +291,7 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
         </div>
 
         <div className="text-xs text-gray-600 mb-2">
-          by{" "}
+          by {""}
           <span className="text-blue-600 hover:underline">
             {product.seller?.store_name || product.seller?.full_name || product.seller?.email || "Unknown Seller"}
           </span>
@@ -500,20 +501,7 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-600">
-                  {filteredProducts.length} of {products.length} results
-                </span>
-                <select className="border rounded-md px-3 py-1 text-sm">
-                  <option>Best Match</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                  <option>Customer Rating</option>
-                  <option>Trust Score</option>
-                </select>
-              </div>
-            </div>
+            {/* results header removed (count + sort selector) */}
 
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
