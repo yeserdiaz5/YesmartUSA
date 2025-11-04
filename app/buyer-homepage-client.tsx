@@ -24,62 +24,6 @@ interface BuyerHomepageClientProps {
   categories: any[]
 }
 
-function TrustBadge({ score }: { score: number }) {
-  const getScoreData = (score: number) => {
-    if (score >= 90)
-      return {
-        color: "bg-emerald-50 border-emerald-200 text-emerald-800",
-        icon: "🛡️",
-        label: "Excellent",
-        barColor: "bg-emerald-500",
-      }
-    if (score >= 80)
-      return {
-        color: "bg-blue-50 border-blue-200 text-blue-800",
-        icon: "✅",
-        label: "Very Good",
-        barColor: "bg-blue-500",
-      }
-    if (score >= 70)
-      return {
-        color: "bg-amber-50 border-amber-200 text-amber-800",
-        icon: "⚠️",
-        label: "Good",
-        barColor: "bg-amber-500",
-      }
-    return {
-      color: "bg-red-50 border-red-200 text-red-800",
-      icon: "❌",
-      label: "Poor",
-      barColor: "bg-red-500",
-    }
-  }
-
-  const scoreData = getScoreData(score)
-
-  return (
-    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border ${scoreData.color}`}>  
-      <span className="text-sm">{scoreData.icon}</span>
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium">Trust Score</span>
-          <span className="text-sm font-bold">{score}%</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-12 h-1 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className={`h-full ${scoreData.barColor} transition-all duration-300`}
-              style={{ width: 
-`${score}%` }}
-            />
-          </div>
-          <span className="text-xs opacity-75">{scoreData.label}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 interface SellerLocationProps {
   seller: any
   buyerLocation: { latitude: number; longitude: number } | null
@@ -152,7 +96,6 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
   const [quantity, setQuantity] = useState(1)
-  const trustScore = 75 + Math.floor(Math.random() * 20)
   const rating = 4 + Math.random()
   const reviews = Math.floor(Math.random() * 2000) + 100
 
@@ -304,10 +247,6 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
           <SellerLocationInfo seller={product.seller} buyerLocation={buyerLocation} />
         </div>
 
-        <div className="mb-3">
-          <TrustBadge score={trustScore} />
-        </div>
-
         <div className="flex items-center gap-2 mb-3">
           <Button
             variant="outline"
@@ -355,7 +294,6 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
 export default function BuyerHomepageClient({ user, products, categories }: BuyerHomepageClientProps) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [priceRange, setPriceRange] = useState([0, 200])
-  const [trustScore, setTrustScore] = useState([70])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const { toast } = useToast()
@@ -435,12 +373,6 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
                 <span>${priceRange[0]}</span>
                 <span>${priceRange[1]}</span>
               </div>
-            </div>
-
-            <div className="mb-6">
-              <h4 className="font-medium mb-3">Minimum Trust Score</h4>
-              <Slider value={trustScore} onValueChange={setTrustScore} max={100} step={5} className="mb-2" />
-              <div className="text-sm text-gray-600">{trustScore[0]}% and above</div>
             </div>
 
             <div className="mb-6">
