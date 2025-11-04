@@ -19,12 +19,14 @@ interface TiendaClientProps {
     store_name: string | null
     avatar_url: string | null
     email: string
+    stripe_account_id?: string | null
   }
   products: Product[]
   currentUser: User | null
+  currentUserId?: string
 }
 
-export default function TiendaClient({ seller, products, currentUser }: TiendaClientProps) {
+export default function TiendaClient({ seller, products, currentUser, currentUserId }: TiendaClientProps) {
   const [addingToCart, setAddingToCart] = useState<string | null>(null)
 
   const handleAddToCart = async (productId: string) => {
@@ -83,6 +85,22 @@ export default function TiendaClient({ seller, products, currentUser }: TiendaCl
           </div>
         </div>
       </div>
+
+      {/* Payment Panel Link - Only shown to seller owner with stripe_account_id */}
+      {seller && currentUserId === seller.id && seller.stripe_account_id && (
+        <div className="container mx-auto px-4 mt-4">
+          <div className="p-4 border rounded bg-gray-50">
+            <h3 className="font-semibold mb-2">Panel de pagos</h3>
+            <p className="text-sm text-gray-600 mb-3">Ver estadísticas y payouts de Stripe para tu cuenta.</p>
+            <Link
+              href={`/admin/payouts?connectedAccount=${seller.stripe_account_id}`}
+              className="inline-block bg-blue-600 text-white px-3 py-1 rounded"
+            >
+              Ver mis pagos (Stripe)
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Products Grid */}
       <main className="container mx-auto px-4 py-8">
