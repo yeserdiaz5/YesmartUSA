@@ -1,6 +1,6 @@
 /**
  * Tests for Delivery Estimate Utilities
- * Run with: node tests/utils/deliveryEstimate.test.js
+ * Run with: npx tsx tests/utils/deliveryEstimate.test.js
  */
 
 import assert from "assert"
@@ -9,7 +9,7 @@ import {
   calculateDeliveryTime,
   validateCoordinates,
   parseSellerCoordinates,
-} from "../../lib/utils/deliveryEstimate.js"
+} from "../../lib/utils/deliveryEstimate"
 
 console.log("🧪 Running Delivery Estimate Tests...\n")
 
