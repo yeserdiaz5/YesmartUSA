@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Star, Search, ShoppingCart, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import { addToCart } from "@/app/actions/cart"
 import { useToast } from "@/hooks/use-toast"
 import { addToGuestCart } from "@/lib/guest-cart"
+import { getCurrentPosition, haversineDistanceKm, estimateDeliveryTime, type Coordinates } from "@/lib/geo"
 
 interface BuyerHomepageClientProps {
   user: User | null
@@ -22,13 +23,29 @@ interface BuyerHomepageClientProps {
   categories: any[]
 }
 
-function ProductCard({ product, userId }: { product: any; userId: string | null }) {
+function ProductCard({ product, userId, userLocation }: { product: any; userId: string | null; userLocation: Coordinates | null }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
   const [quantity, setQuantity] = useState(1)
   const rating = 4 + Math.random()
   const reviews = Math.floor(Math.random() * 2000) + 100
+
+  // Calculate delivery time estimate if both user and seller locations are available
+  // Assumption: product.seller.location should have { latitude, longitude } structure
+  const deliveryEstimate = useMemo(() => {
+    if (!userLocation || !product.seller?.location) {
+      return null
+    }
+
+    try {
+      const distance = haversineDistanceKm(userLocation, product.seller.location)
+      return estimateDeliveryTime(distance)
+    } catch (error) {
+      // If calculation fails, return null to show placeholder
+      return null
+    }
+  }, [userLocation, product.seller])
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -171,6 +188,15 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           </span>
         </div>
 
+        {/* Delivery time estimate based on geolocation */}
+        <div className="text-sm text-gray-500 mb-3">
+          {deliveryEstimate ? (
+            <span>🚚 {deliveryEstimate}</span>
+          ) : (
+            <span>Tiempo de entrega: —</span>
+          )}
+        </div>
+
         <div className="flex items-center gap-2 mb-3">
           <Button
             variant="outline"
@@ -220,7 +246,20 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
   const [priceRange, setPriceRange] = useState([0, 200])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const { toast } = useToast()
+
+  // Request user's geolocation on component mount
+  useEffect(() => {
+    getCurrentPosition()
+      .then((location) => {
+        setUserLocation(location)
+      })
+      .catch((error) => {
+        // Silently handle geolocation errors - just don't show delivery estimates
+        console.log("Geolocation not available:", error.message)
+      })
+  }, [])
 
   const handleCategoryChange = (categorySlug: string, checked: boolean) => {
     if (checked) {
@@ -376,7 +415,7 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} userId={user?.id || null} />
+                  <ProductCard key={product.id} product={product} userId={user?.id || null} userLocation={userLocation} />
                 ))}
               </div>
             ) : (
