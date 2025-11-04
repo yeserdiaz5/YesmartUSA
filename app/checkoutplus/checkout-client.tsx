@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { getCart, updateCartItemQuantity, removeFromCart } from "@/app/actions/cart"
-import { createTestOrder, createGuestOrder } from "@/app/actions/orders"
 import { SiteHeader } from "@/components/site-header"
 import { getGuestCart, updateGuestCartQuantity, removeFromGuestCart, clearGuestCart } from "@/lib/guest-cart"
 import { createStripeCheckoutSession } from "@/app/actions/stripe"
@@ -115,92 +114,6 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
       const quantity = item.quantity
       return sum + price * quantity
     }, 0)
-  }
-
-  const handleTestOrder = async () => {
-    console.log("[v0] handleTestOrder - Starting")
-
-    // Validate form
-    if (!customerName || !customerEmail || !phone || !street || !city || !state || !zip) {
-      console.log("[v0] handleTestOrder - Validation failed")
-      toast({
-        title: "Datos de envío incompletos",
-        description: "Por favor llena tus datos de envío para continuar",
-        variant: "destructive",
-      })
-      return
-    }
-
-    console.log("[v0] handleTestOrder - Form validated, creating order")
-    setProcessing(true)
-
-    try {
-      let result
-
-      if (isGuest) {
-        const orderItems = cartItems.map((item) => ({
-          product_id: item.product_id,
-          quantity: item.quantity,
-          price: item.product.price,
-          seller_id: item.product.seller_id,
-        }))
-
-        result = await createGuestOrder(orderItems, {
-          customerName,
-          customerEmail,
-          phone,
-          street,
-          city,
-          state,
-          zip,
-          country,
-        })
-
-        if (result.success) {
-          clearGuestCart()
-        }
-      } else {
-        // Create authenticated user order
-        result = await createTestOrder({
-          customerName,
-          customerEmail,
-          phone,
-          street,
-          city,
-          state,
-          zip,
-          country,
-        })
-      }
-
-      console.log("[v0] handleTestOrder - Result:", result)
-
-      if (result.success) {
-        console.log("[v0] handleTestOrder - Success, order ID:", result.orderId)
-        setCartItems([])
-        toast({
-          title: "¡Pedido creado!",
-          description: "Tu pedido ha sido procesado exitosamente",
-        })
-        router.push(`/checkoutplus/success?order_id=${result.orderId}`)
-      } else {
-        console.log("[v0] handleTestOrder - Error:", result.error)
-        toast({
-          title: "Error al crear pedido",
-          description: result.error || "No se pudo crear el pedido. Por favor intenta de nuevo.",
-          variant: "destructive",
-        })
-      }
-    } catch (error) {
-      console.error("[v0] handleTestOrder - Exception:", error)
-      toast({
-        title: "Error inesperado",
-        description: "Ocurrió un error al procesar tu pedido. Por favor intenta de nuevo.",
-        variant: "destructive",
-      })
-    } finally {
-      setProcessing(false)
-    }
   }
 
   const handleStripeCheckout = async () => {
@@ -309,18 +222,26 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
         </Button>
 
         {isGuest && (
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              Estás comprando como invitado. Puedes{" "}
-              <a href="/auth/login" className="underline font-medium">
-                iniciar sesión
-              </a>{" "}
-              o{" "}
-              <a href="/auth/sign-up" className="underline font-medium">
-                crear una cuenta
-              </a>{" "}
-              para guardar tu historial de pedidos.
-            </p>
+          <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 mt-0.5">
+                <ShoppingBag className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-blue-900 mb-1">Compra como Invitado</h3>
+                <p className="text-sm text-blue-800">
+                  Puedes completar tu compra sin crear una cuenta. Si deseas guardar tu historial de pedidos,{" "}
+                  <a href="/auth/login" className="underline font-medium hover:text-blue-900">
+                    inicia sesión
+                  </a>{" "}
+                  o{" "}
+                  <a href="/auth/sign-up" className="underline font-medium hover:text-blue-900">
+                    crea una cuenta
+                  </a>
+                  .
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -495,28 +416,18 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
 
                 <div className="space-y-3">
                   <Button
-                    onClick={handleTestOrder}
-                    disabled={processing}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                  >
-                    <ShoppingBag className="mr-2 h-4 w-4" />
-                    {processing ? "Procesando..." : "Realizar Pedido de Prueba"}
-                  </Button>
-
-                  <Button
                     onClick={handleStripeCheckout}
                     disabled={processing}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-6 text-lg shadow-lg"
                   >
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    {processing ? "Procesando..." : "Pagar con Stripe"}
+                    <CreditCard className="mr-2 h-5 w-5" />
+                    {processing ? "Procesando pago..." : "Pagar con Stripe"}
                   </Button>
-                </div>
 
-                <p className="text-xs text-gray-500 text-center">
-                  * El pedido de prueba crea una orden con estado "pending". El pago con Stripe procesa pagos reales y
-                  actualiza el estado a "paid".
-                </p>
+                  <p className="text-xs text-gray-500 text-center">
+                    Pago seguro procesado por Stripe. Tus datos están protegidos.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
