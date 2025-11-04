@@ -221,10 +221,13 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
         </div>
 
         <div className="text-xs text-gray-600 mb-3">
-          by{" "}
-          <span className="text-blue-600 hover:underline">
-            {product.seller?.full_name || product.seller?.email || "Unknown Seller"}
-          </span>
+          <Link 
+            href={`/tienda/${product.seller?.id}`}
+            className="text-blue-600 hover:underline font-medium"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {product.seller?.store_name || product.seller?.full_name || "Tienda"}
+          </Link>
         </div>
 
         <div className="mb-3">
