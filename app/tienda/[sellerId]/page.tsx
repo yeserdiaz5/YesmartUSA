@@ -30,5 +30,5 @@ export default async function TiendaPage({ params }: TiendaPageProps) {
 
   const { seller, products } = result.data
 
-  return <TiendaClient seller={seller} products={products || []} currentUser={userProfile} />
+  return <TiendaClient seller={seller} products={products || []} currentUser={userProfile} currentUserId={user?.id} />
 }

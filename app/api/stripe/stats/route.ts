@@ -1,6 +1,6 @@
 // API route para devolver estadísticas (server-only). Protege con auth en producción.
 import { NextResponse } from 'next/server'
-import { getStripeStats } from '../../../lib/stripe'
+import { getStripeStats } from '@/lib/stripe'
 
 export async function GET(request: Request) {
   try {
