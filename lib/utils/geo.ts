@@ -14,6 +14,12 @@ export interface Coordinates {
  */
 export function getCurrentPosition(): Promise<Coordinates> {
   return new Promise((resolve, reject) => {
+    // Check if running in secure context (HTTPS required for geolocation)
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      reject(new Error("Geolocation requires a secure context (HTTPS)"))
+      return
+    }
+
     // Check if geolocation is supported
     if (!navigator.geolocation) {
       reject(new Error("Geolocation is not supported by this browser"))
@@ -85,4 +91,19 @@ export function estimateDeliveryTimeText(distanceKm: number): string {
   } else {
     return "Entrega en 2-5 días"
   }
+}
+
+/**
+ * Type guard to validate if an object is valid coordinates
+ * @param location Object to validate
+ * @returns True if location has valid latitude and longitude
+ */
+export function isValidCoordinates(location: any): location is Coordinates {
+  return (
+    location &&
+    typeof location.latitude === "number" &&
+    typeof location.longitude === "number" &&
+    !isNaN(location.latitude) &&
+    !isNaN(location.longitude)
+  )
 }

@@ -15,7 +15,7 @@ import { useRouter } from "next/navigation"
 import { addToCart } from "@/app/actions/cart"
 import { useToast } from "@/hooks/use-toast"
 import { addToGuestCart } from "@/lib/guest-cart"
-import { getCurrentPosition, haversineDistanceKm, estimateDeliveryTimeText, type Coordinates } from "@/lib/utils/geo"
+import { getCurrentPosition, haversineDistanceKm, estimateDeliveryTimeText, isValidCoordinates, type Coordinates } from "@/lib/utils/geo"
 
 interface BuyerHomepageClientProps {
   user: User | null
@@ -39,7 +39,7 @@ function ProductCard({ product, userId, userLocation }: { product: any; userId: 
     }
     
     const sellerLocation = product.seller?.location
-    if (!sellerLocation || typeof sellerLocation.latitude !== "number" || typeof sellerLocation.longitude !== "number") {
+    if (!isValidCoordinates(sellerLocation)) {
       return "Tiempo de entrega: —"
     }
 
@@ -250,9 +250,9 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
       .then((coords) => {
         setUserLocation(coords)
       })
-      .catch((error) => {
+      .catch(() => {
         // Silently handle errors - user denied permission or geolocation not available
-        console.log("Geolocation not available:", error.message)
+        // Keep userLocation as null to show placeholder
       })
   }, [])
 
