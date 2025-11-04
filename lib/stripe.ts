@@ -1,13 +1,13 @@
 // Wrapper y funciones servidoras para obtener estadísticas de Stripe
-import Stripe from 'stripe'
+import Stripe from "stripe"
 
 const stripeSecret = process.env.STRIPE_SECRET_KEY
 if (!stripeSecret) {
-  throw new Error('Missing STRIPE_SECRET_KEY in env')
+  throw new Error("Missing STRIPE_SECRET_KEY in env")
 }
 
 const stripe = new Stripe(stripeSecret, {
-  apiVersion: '2022-11-15',
+  apiVersion: "2022-11-15",
 })
 
 type StatsOptions = {
@@ -29,7 +29,7 @@ export async function getStripeStats(options: StatsOptions = {}) {
 
   // Charges in last `days`. We request up to 100 and filter by created >= since.
   // NOTE: for high volume, implement pagination & server-side aggregation.
-  const chargesList = await stripe.charges.list({ limit: 100, expand: ['data.balance_transaction'] }, callOpts as any)
+  const chargesList = await stripe.charges.list({ limit: 100, expand: ["data.balance_transaction"] }, callOpts as any)
   const chargesRecent = chargesList.data.filter((c) => (c.created ?? 0) >= since)
 
   // Aggregate simple metrics (amounts in cents)
@@ -39,14 +39,14 @@ export async function getStripeStats(options: StatsOptions = {}) {
     return sum
   }, 0)
   const chargesCount = chargesRecent.length
-  const failedPayments = chargesRecent.filter((c) => c.status === 'failed').length
+  const failedPayments = chargesRecent.filter((c) => c.status === "failed").length
   const disputesList = await stripe.disputes.list({ limit: 50 }, callOpts as any)
   const disputesCount = disputesList.data.length
 
   // Fees estimate (sum of balance_transaction.fee if present)
   const fees = chargesRecent.reduce((sum, c) => {
     const bt = (c as any).balance_transaction
-    if (bt && typeof bt.fee === 'number') return sum + bt.fee
+    if (bt && typeof bt.fee === "number") return sum + bt.fee
     return sum
   }, 0)
 
@@ -66,4 +66,5 @@ export async function getStripeStats(options: StatsOptions = {}) {
   }
 }
 
+export { stripe }
 export default stripe
