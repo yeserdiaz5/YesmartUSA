@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Star, Search, ShoppingCart, Plus, Minus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation"
 import { addToCart } from "@/app/actions/cart"
 import { useToast } from "@/hooks/use-toast"
 import { addToGuestCart } from "@/lib/guest-cart"
+import { getCurrentPosition, haversineDistanceKm, estimateDeliveryTimeText, type Coordinates } from "@/lib/utils/geo"
 
 interface BuyerHomepageClientProps {
   user: User | null
@@ -22,13 +23,29 @@ interface BuyerHomepageClientProps {
   categories: any[]
 }
 
-function ProductCard({ product, userId }: { product: any; userId: string | null }) {
+function ProductCard({ product, userId, userLocation }: { product: any; userId: string | null; userLocation: Coordinates | null }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
   const [quantity, setQuantity] = useState(1)
   const rating = 4 + Math.random()
   const reviews = Math.floor(Math.random() * 2000) + 100
+
+  // Calculate delivery time based on user and seller locations
+  // Assumption: product.seller?.location contains { latitude: number, longitude: number }
+  const deliveryTimeText = useMemo(() => {
+    if (!userLocation) {
+      return "Tiempo de entrega: —"
+    }
+    
+    const sellerLocation = product.seller?.location
+    if (!sellerLocation || typeof sellerLocation.latitude !== "number" || typeof sellerLocation.longitude !== "number") {
+      return "Tiempo de entrega: —"
+    }
+
+    const distance = haversineDistanceKm(userLocation, sellerLocation)
+    return estimateDeliveryTimeText(distance)
+  }, [userLocation, product.seller?.location])
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.preventDefault()
@@ -171,6 +188,10 @@ function ProductCard({ product, userId }: { product: any; userId: string | null 
           </span>
         </div>
 
+        <div className="text-sm text-gray-500 mb-3">
+          {deliveryTimeText}
+        </div>
+
         <div className="flex items-center gap-2 mb-3">
           <Button
             variant="outline"
@@ -220,7 +241,20 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
   const [priceRange, setPriceRange] = useState([0, 200])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null)
   const { toast } = useToast()
+
+  // Request user's location on component mount
+  useEffect(() => {
+    getCurrentPosition()
+      .then((coords) => {
+        setUserLocation(coords)
+      })
+      .catch((error) => {
+        // Silently handle errors - user denied permission or geolocation not available
+        console.log("Geolocation not available:", error.message)
+      })
+  }, [])
 
   const handleCategoryChange = (categorySlug: string, checked: boolean) => {
     if (checked) {
@@ -376,7 +410,7 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} userId={user?.id || null} />
+                  <ProductCard key={product.id} product={product} userId={user?.id || null} userLocation={userLocation} />
                 ))}
               </div>
             ) : (
