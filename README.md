@@ -10,6 +10,17 @@
 This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
 Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
 
+## Features
+
+### 🚚 Geolocation-Based Delivery Time Estimation
+Real-time delivery time estimates based on buyer and seller locations using GPS coordinates. See [docs/DELIVERY_ESTIMATION.md](docs/DELIVERY_ESTIMATION.md) for details.
+
+- Automatic browser geolocation
+- Haversine distance calculation
+- Configurable delivery speed and preparation time
+- Integrated in product pages and checkout
+- Full test coverage
+
 ## Deployment
 
 Your project is live at:
