@@ -1,4 +1,4 @@
-use client
+"use client"
 
 import type React from "react"
 import { useState, useMemo, useEffect } from "react"
@@ -33,9 +33,10 @@ function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
   const [deliveryTime, setDeliveryTime] = useState<string | null>(null)
 
   // Always show seller location immediately if available
-  const locationStr = seller?.seller_address?.city && seller?.seller_address?.state
-    ? `${seller.seller_address.city}, ${seller.seller_address.state}`
-    : null
+  const locationStr =
+    seller?.seller_address?.city && seller?.seller_address?.state
+      ? `${seller.seller_address.city}, ${seller.seller_address?.state}`
+      : null
 
   useEffect(() => {
     // Only calculate delivery time if we have both buyer location and seller address
@@ -46,17 +47,14 @@ function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
 
     async function calculateDeliveryTime() {
       try {
-        const sellerCoords = await geocodeAddress(
-          seller.seller_address.city,
-          seller.seller_address.state
-        )
+        const sellerCoords = await geocodeAddress(seller.seller_address.city, seller.seller_address.state)
 
         if (sellerCoords) {
           const distance = calculateDistance(
             buyerLocation.latitude,
             buyerLocation.longitude,
             sellerCoords.lat,
-            sellerCoords.lng
+            sellerCoords.lng,
           )
           const deliveryTimeMsg = getDeliveryTimeMessage(distance)
           setDeliveryTime(deliveryTimeMsg)
@@ -91,7 +89,11 @@ function SellerLocationInfo({ seller, buyerLocation }: SellerLocationProps) {
   )
 }
 
-function ProductCard({ product, userId, buyerLocation }: { product: any; userId: string | null; buyerLocation: { latitude: number; longitude: number } | null }) {
+function ProductCard({
+  product,
+  userId,
+  buyerLocation,
+}: { product: any; userId: string | null; buyerLocation: { latitude: number; longitude: number } | null }) {
   const router = useRouter()
   const { toast } = useToast()
   const [isAdding, setIsAdding] = useState(false)
@@ -200,7 +202,7 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
   return (
     <Card className="hover:shadow-lg transition-shadow cursor-pointer">
       <CardContent className="p-4">
-        <Link href={`/productdes/${product.id}`}>  
+        <Link href={`/productdes/${product.id}`}>
           <div className="relative mb-3 cursor-pointer">
             <img
               src={product.image_url || "/placeholder.svg"}
@@ -213,7 +215,7 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
           </div>
         </Link>
 
-        <Link href={`/productdes/${product.id}`}>  
+        <Link href={`/productdes/${product.id}`}>
           <h3 className="font-medium text-sm mb-2 line-clamp-2 hover:text-blue-600 cursor-pointer">{product.title}</h3>
         </Link>
 
@@ -234,7 +236,7 @@ function ProductCard({ product, userId, buyerLocation }: { product: any; userId:
         </div>
 
         <div className="text-xs text-gray-600 mb-2">
-          <Link 
+          <Link
             href={`/tienda/${product.seller?.id}`}
             className="text-blue-600 hover:underline font-medium"
             onClick={(e) => e.stopPropagation()}
@@ -441,7 +443,12 @@ export default function BuyerHomepageClient({ user, products, categories }: Buye
             {filteredProducts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} userId={user?.id || null} buyerLocation={buyerLocation} />
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    userId={user?.id || null}
+                    buyerLocation={buyerLocation}
+                  />
                 ))}
               </div>
             ) : (
