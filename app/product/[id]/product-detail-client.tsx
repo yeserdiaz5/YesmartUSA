@@ -9,6 +9,7 @@ import Link from "next/link"
 import type { User } from "@supabase/supabase-js"
 import { testShippingRates } from "@/app/actions/shipengine"
 import { useToast } from "@/hooks/use-toast"
+import { DeliveryEstimate } from "@/components/DeliveryEstimate"
 
 interface ProductDetailClientProps {
   product: any
@@ -290,6 +291,11 @@ export default function ProductDetailClient({ product, user }: ProductDetailClie
                 </div>
               </CardContent>
             </Card>
+
+            {/* Delivery Estimate */}
+            {product.seller_id && (
+              <DeliveryEstimate sellerId={product.seller_id} />
+            )}
 
             {/* Description */}
             {product.description && (
