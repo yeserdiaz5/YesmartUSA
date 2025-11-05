@@ -322,7 +322,9 @@ export async function getAllProducts(categorySlug?: string, searchQuery?: string
       seller:users!products_seller_id_fkey (
         id,
         full_name,
-        email
+        email,
+        store_name,
+        seller_address
       ),
       product_categories (
         category:categories (*)
