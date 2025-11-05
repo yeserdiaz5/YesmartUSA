@@ -10,6 +10,7 @@ export interface User {
   avatar_url: string | null
   phone: string | null
   store_name: string | null
+  stripe_account_id: string | null
   seller_address: {
     full_name: string
     address_line1: string
