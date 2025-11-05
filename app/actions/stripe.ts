@@ -2,7 +2,7 @@
 
 import { stripe } from "@/lib/stripe"
 import { createClient } from "@/lib/supabase/server"
-import { getGuestCart } from "@/lib/guest-cart"
+import type Stripe from "stripe"
 
 interface CheckoutData {
   customerName: string
@@ -12,10 +12,16 @@ interface CheckoutData {
   city: string
   state: string
   zip: string
-  country: string
+  country?: string
 }
 
-export async function createStripeCheckoutSession(checkoutData: CheckoutData, isGuest: boolean) {
+// Ahora el servidor acepta opcionalmente guestCartItems provenientes del cliente.
+// No se llama a funciones que usan localStorage desde el servidor.
+export async function createStripeCheckoutSession(
+  checkoutData: CheckoutData,
+  isGuest: boolean,
+  guestCartItems?: Array<any>
+) {
   const supabase = await createClient()
 
   let cartItems: any[] = []
@@ -42,7 +48,8 @@ export async function createStripeCheckoutSession(checkoutData: CheckoutData, is
           description,
           price,
           stock_quantity,
-          seller_id
+          seller_id,
+          image_url
         )
       `)
       .eq("user_id", user.id)
@@ -51,87 +58,109 @@ export async function createStripeCheckoutSession(checkoutData: CheckoutData, is
       throw new Error("El carrito está vacío")
     }
 
-    cartItems = data
+    cartItems = data.map((ci: any) => ({
+      product: ci.product,
+      quantity: ci.quantity,
+    }))
   } else {
-    cartItems = getGuestCart()
-
-    if (cartItems.length === 0) {
+    // Para invitados, esperamos que el cliente envíe el carrito (guestCartItems).
+    if (!guestCartItems || guestCartItems.length === 0) {
       throw new Error("El carrito está vacío")
     }
-  }
 
-  const totalAmount = cartItems.reduce((sum, item) => {
-    const price = isGuest ? item.product.price : item.product.price
-    return sum + price * item.quantity
-  }, 0)
-
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      buyer_id: userId,
-      buyer_email: isGuest ? checkoutData.customerEmail : null,
-      status: "pending",
-      total_amount: totalAmount,
-      shipping_address: {
-        name: checkoutData.customerName,
-        email: checkoutData.customerEmail,
-        phone: checkoutData.phone,
-        street: checkoutData.street,
-        city: checkoutData.city,
-        state: checkoutData.state,
-        zip: checkoutData.zip,
-        country: checkoutData.country,
+    cartItems = guestCartItems.map((it: any) => ({
+      product: {
+        id: it.id,
+        title: it.title,
+        description: it.description || "",
+        price: it.price,
+        image_url: it.image_url,
+        seller_id: it.seller_id,
       },
-    })
-    .select()
-    .single()
-
-  if (orderError || !order) {
-    throw new Error("Error al crear la orden: " + orderError?.message)
+      quantity: it.quantity ?? 1,
+    }))
   }
 
-  const orderItems = cartItems.map((item) => ({
-    order_id: order.id,
-    product_id: isGuest ? item.product_id : item.product.id,
-    seller_id: item.product.seller_id,
-    quantity: item.quantity,
-    price_at_purchase: item.product.price,
-  }))
+  // Crear orden preliminar en BD con estado pending
+  const totalAmount = cartItems.reduce((sum, ci) => sum + ci.product.price * ci.quantity, 0)
 
-  const { error: itemsError } = await supabase.from("order_items").insert(orderItems)
+  let order: any = null
+  try {
+    const { data: orderData, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        buyer_id: userId,
+        buyer_email: isGuest ? checkoutData.customerEmail : null,
+        status: "pending",
+        total_amount: totalAmount,
+        shipping_address: {
+          name: checkoutData.customerName,
+          phone: checkoutData.phone,
+          street: checkoutData.street,
+          city: checkoutData.city,
+          state: checkoutData.state,
+          zip: checkoutData.zip,
+          country: checkoutData.country || "US",
+        },
+      })
+      .select()
+      .single()
 
-  if (itemsError) {
-    // Rollback order if items creation fails
-    await supabase.from("orders").delete().eq("id", order.id)
-    throw new Error("Error al crear los items de la orden: " + itemsError.message)
+    if (orderError || !orderData) {
+      console.error("Error creating order:", orderError)
+    } else {
+      order = orderData
+
+      // insertar items de orden
+      try {
+        const orderItems = cartItems.map((ci) => ({
+          order_id: order.id,
+          product_id: ci.product.id,
+          seller_id: ci.product.seller_id,
+          quantity: ci.quantity,
+          price_at_purchase: ci.product.price,
+        }))
+        const { error: itemsError } = await supabase.from("order_items").insert(orderItems)
+        if (itemsError) {
+          console.error("Error inserting order items:", itemsError)
+        }
+      } catch (err) {
+        console.error("Error creating order items:", err)
+      }
+    }
+  } catch (err) {
+    console.error("Failed to create preliminary order:", err)
   }
 
-  const lineItems = cartItems.map((item) => ({
+  // Construir line items para Stripe
+  const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = cartItems.map((ci) => ({
     price_data: {
       currency: "usd",
       product_data: {
-        name: item.product.title,
-        description: item.product.description || "",
+        name: ci.product.title,
+        description: ci.product.description || undefined,
+        images: ci.product.image_url ? [ci.product.image_url] : undefined,
       },
-      unit_amount: Math.round(item.product.price * 100), // Convert to cents
+      unit_amount: Math.round(ci.product.price * 100),
     },
-    quantity: item.quantity,
+    quantity: ci.quantity,
   }))
 
   const session = await stripe.checkout.sessions.create({
     payment_method_types: ["card"],
-    line_items: lineItems,
     mode: "payment",
-    success_url: `${process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || "http://localhost:3000"}/checkoutplus/success?order_id=${order.id}&session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || "http://localhost:3000"}/checkoutplus`,
-    customer_email: checkoutData.customerEmail,
+    line_items,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/checkoutplus/success?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/checkoutplus`,
     metadata: {
-      order_id: order.id,
-      user_id: userId || "guest",
+      order_id: order?.id || "",
+      buyer_id: userId ?? "",
+      buyer_email: checkoutData.customerEmail ?? "",
     },
+    customer_email: checkoutData.customerEmail,
   })
 
-  return { sessionId: session.id, url: session.url, orderId: order.id }
+  return { url: session.url, sessionId: session.id, orderId: order?.id || null }
 }
 
 export async function getCheckoutSession(sessionId: string) {
