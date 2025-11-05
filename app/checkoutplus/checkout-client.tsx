@@ -221,6 +221,18 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
     setProcessing(true)
 
     try {
+      const guestCartData = isGuest
+        ? cartItems.map((item) => ({
+            id: item.product.id,
+            title: item.product.title,
+            description: item.product.description || "",
+            price: item.product.price,
+            image_url: item.product.image_url,
+            seller_id: item.product.seller_id,
+            quantity: item.quantity,
+          }))
+        : undefined
+
       const result = await createStripeCheckoutSession(
         {
           customerName,
@@ -233,6 +245,7 @@ export function CheckoutClient({ initialUser }: CheckoutClientProps) {
           country,
         },
         isGuest,
+        guestCartData, // Pass guest cart items to server
       )
 
       console.log("[v0] handleStripeCheckout - Stripe session created:", result)
